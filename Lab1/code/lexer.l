@@ -13,6 +13,8 @@ int yycolumn = 1;
 
 %option yylineno
 
+linecomment "//".*
+multilinecomment "/*"[/]*([^*/][/]*|[*][^*/]*)*"*/"
 whitespace [ \t] 
 digit [0-9]
 letter [_a-zA-Z]
@@ -48,6 +50,8 @@ FLOAT {digit}+"."{digit}+|{digit}*"."{digit}+[eE][+-]?{digit}+|{digit}+"."{digit
 
 %%
 {whitespace}+ {;}
+{linecomment} {;}
+{multilinecomment} {;}
 \n|\r { yycolumn = 1; }
 {IF} { yylval.node = newTokenNode(yylineno, KEYWORD_TYPE, "IF", yytext); return IF; }
 {ELSE} { yylval.node = newTokenNode(yylineno, KEYWORD_TYPE, "ELSE", yytext); return ELSE; }
@@ -82,4 +86,5 @@ FLOAT {digit}+"."{digit}+|{digit}*"."{digit}+[eE][+-]?{digit}+|{digit}+"."{digit
 {FLOAT} { yylval.node = newTokenNode(yylineno, FLOAT_TYPE, "FLOAT", yytext); return FLOAT;}
 
 . { fprintf(stderr,"Error type A at Line %d: Mysterious character \'%s\'.\n", yylineno, yytext); }
+
 %%

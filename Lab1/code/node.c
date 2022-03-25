@@ -9,7 +9,7 @@
  * @param value 值
  * @return pNode 建立好的Token项的值
  */
-static pNode newTokenNode(uint32_t lineno,nodeType type,
+pNode newTokenNode(uint32_t lineno,nodeType type,
     const char *name,const char *value){
 
         pNode tokenNode = malloc(sizeof(Node));
@@ -53,7 +53,7 @@ static pNode newTokenNode(uint32_t lineno,nodeType type,
  * @param ... 儿子节点
  * @return pNode 建立好的语法节点
  */
-static pNode newNode(uint32_t lineno,nodeType type,
+pNode newNode(uint32_t lineno,nodeType type,
     const char *name,int argc,...){
         /*此时是语法节点，不再需要节点的值了*/
         pNode currentNode = newTokenNode(lineno,type,name,"");
@@ -82,10 +82,8 @@ static pNode newNode(uint32_t lineno,nodeType type,
  * @param currentNode 语法节点
  * @param height 树深度
  */
-static void printSyntaxTree(pNode currentNode,int height){
+void printSyntaxTree(pNode currentNode,int height){
     if(currentNode != NULL){
-        /*能够比较清晰的展示深度*/
-        
         if(currentNode->type == NON_TERMINAL && currentNode->child != NULL){
             for (int i = 0; i < height; i++) {
                 printf("  ");
@@ -107,6 +105,11 @@ static void printSyntaxTree(pNode currentNode,int height){
                 printf("  ");
             }
             fprintf(stdout,"%s: %f\n",currentNode->name,atof(currentNode->value));
+        }else if(currentNode->type == KEYWORD_TYPE){
+            for (int i = 0; i < height; i++) {
+                printf("  ");
+            }
+            fprintf(stdout,"%s\n",currentNode->name);
         }
         printSyntaxTree(currentNode->child,height+1);
         printSyntaxTree(currentNode->brother,height);

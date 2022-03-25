@@ -36,10 +36,10 @@ typedef struct node{
 
 typedef Node* pNode;
 
-static pNode newTokenNode(uint32_t lineno,nodeType type,
+pNode newTokenNode(uint32_t lineno,nodeType type,
     const char *name,const char *value);
-static pNode newNode(uint32_t lineno,nodeType type,
+pNode newNode(uint32_t lineno,nodeType type,
     const char *name,int argc,...);
-static void printSyntaxTree(pNode currentNode,int height);
+void printSyntaxTree(pNode currentNode,int height);
 
 #endif

@@ -1,0 +1,6 @@
+##ignore this file##
+main 
+*.o 
+syntax.output 
+*.tab.* 
+lex.yy.c

@@ -46,7 +46,7 @@
 main:syntax.y lexer.l main.c node.c
 	flex -o lex.yy.c lexer.l 
 	bison -o syntax.tab.c -d -v syntax.y
-	cc -g syntax.tab.c main.c node.c -lfl -o main
+	cc -g node.c syntax.tab.c main.c  -lfl -o main
 # cc -g -c syntax.tab.c -o syntax.tab.o
 # cc -g -c -o main.o main.c
 # cc -g -c -o node.o node.c
