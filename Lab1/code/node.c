@@ -90,7 +90,7 @@ void printSyntaxTree(pNode currentNode,int height){
             }
             /*按要求打印第一个儿子的行号*/
             fprintf(stdout,"%s (%d)\n",currentNode->name,currentNode->child->lineno);
-        }else if(currentNode->type == ID_TYPE){
+        }else if(currentNode->type == ID_TYPE || currentNode-> type == TYPE_TYPE){
             for (int i = 0; i < height; i++) {
                 printf("  ");
             }

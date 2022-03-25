@@ -2,6 +2,7 @@
 #include "syntax.tab.h"
 #include "node.h"
 
+extern bool lexerror;
 int yycolumn = 1;
 
 #define YY_USER_ACTION \
@@ -85,6 +86,6 @@ FLOAT {digit}+"."{digit}+|{digit}*"."{digit}+[eE][+-]?{digit}+|{digit}+"."{digit
 {INT} { yylval.node = newTokenNode(yylineno,INT_TYPE, "INT", yytext); return INT;}
 {FLOAT} { yylval.node = newTokenNode(yylineno, FLOAT_TYPE, "FLOAT", yytext); return FLOAT;}
 
-. { fprintf(stderr,"Error type A at Line %d: Mysterious character \'%s\'.\n", yylineno, yytext); }
+. { lexerror = true; fprintf(stderr,"Error type A at Line %d: Mysterious character \'%s\'.\n", yylineno, yytext); }
 
 %%
