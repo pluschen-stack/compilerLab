@@ -18,6 +18,8 @@ typedef enum {
     INT_TYPE,//整数类型
     TYPE_TYPE,//类型的类型
     ID_TYPE,//标识符类型
+    OPERATOR_TYPE,//运算符类型
+    PUNCTUATION_TYPE,//标点符号等，包括括号
     KEYWORD_TYPE,//关键字类型
     NON_TERMINAL//非终结符，也就是语法单元
 }nodeType;

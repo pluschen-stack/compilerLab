@@ -105,7 +105,8 @@ void printSyntaxTree(pNode currentNode,int height){
                 printf("  ");
             }
             fprintf(stdout,"%s: %f\n",currentNode->name,atof(currentNode->value));
-        }else if(currentNode->type == KEYWORD_TYPE){
+        }else if(currentNode->type == KEYWORD_TYPE || currentNode-> type == PUNCTUATION_TYPE 
+                || currentNode->type == OPERATOR_TYPE){
             for (int i = 0; i < height; i++) {
                 printf("  ");
             }

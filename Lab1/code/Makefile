@@ -11,3 +11,4 @@ test:
 	./main ../test/sample1.txt
 	./main ../test/sample2.txt
 	./main ../test/sample3.txt
+	./main ../test/sample4.txt
