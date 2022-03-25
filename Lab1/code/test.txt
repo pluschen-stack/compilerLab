@@ -1,0 +1,6 @@
+int i;
+int func(){
+    int i = 2;
+    int j = 3;
+    foo();
+}
