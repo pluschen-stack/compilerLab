@@ -1,12 +1,17 @@
 int i;
 float k;
 int func(){
-    int i = 2;
+    int i = 09;
     int j = 3;//注释
     k = 30.9;//注释
     k = i + j;//注释 int k;
     /*
         这是一个多行注释
     */
+    if(i = 3)
+        if(i = 4)
+            return 0;
+    else
+        return 1;
     foo();
 }

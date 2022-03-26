@@ -46,7 +46,9 @@ RB "]"
 LC "{"
 RC "}"
 ID {letter}{letteranddigit}*
-INT 0|[1-9]+[0-9]*
+/*识别八进制数，十进制数，十六进制数*/
+INT (0[0-7]*)|([1-9]+[0-9]*)|(0[xX][0-9a-fA-F]+)
+/*浮点数指数部分*/
 FLOAT {digit}+"."{digit}+|{digit}*"."{digit}+[eE][+-]?{digit}+|{digit}+"."{digit}*[eE][+-]?{digit}+
 
 %%
@@ -86,6 +88,15 @@ FLOAT {digit}+"."{digit}+|{digit}*"."{digit}+[eE][+-]?{digit}+|{digit}+"."{digit
 {INT} { yylval.node = newTokenNode(yylineno,INT_TYPE, "INT", yytext); return INT;}
 {FLOAT} { yylval.node = newTokenNode(yylineno, FLOAT_TYPE, "FLOAT", yytext); return FLOAT;}
 
-. { lexerror = true; fprintf(stderr,"Error type A at Line %d: Mysterious character \'%s\'.\n", yylineno, yytext); }
+0[0-9]+ {lexerror = true; fprintf(stderr,"Error type A at Line %d: Illegal octal number \'%s\'.\n", yylineno, yytext);}
+0[xX][0-9a-zA-Z]+ {lexerror = true; fprintf(stderr,"Error type A at Line %d: Illegal hexadecimal number \'%s\'.\n", yylineno, yytext);}
+{digit}+{ID}  { lexerror = true; printf("Error type A at Line %d: 非法ID \"%s\".\n", yylineno, yytext); }
+"."{digit}+ { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
+{digit}+"." { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
+{digit}*"."{digit}+[eE] { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
+{digit}+"."{digit}*[eE] { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
+{digit}+[eE][+-]?{digit}* { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
+"."[eE][+-]?{digit}+ { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
+. { lexerror = true; fprintf(stderr,"Error type A at Line %d: 未知符号 \'%s\'.\n", yylineno, yytext); }
 
 %%

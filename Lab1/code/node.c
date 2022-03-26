@@ -1,5 +1,5 @@
 #include "node.h"
-
+#include "util.h"
 /**
  * @brief 建立词法分析时的Token项的值
  * 
@@ -28,7 +28,24 @@ pNode newTokenNode(uint32_t lineno,nodeType type,
             strncpy(tokenNode->name,name,nameLength);
         }
         
-        if(value != NULL){
+        if(value != NULL && type == INT_TYPE){
+            valueLength = strlen(value);
+            /*整数类型的重新判断以下*/
+            if((!strncmp(value,"0X",2) || !strncmp(value,"0x",2)) && valueLength >= 3){
+                valueLength = 2*valueLength +1;//十六进制数转化成十进制数后会变长，这里就直接乘两倍了。
+                tokenNode->value = malloc(valueLength);
+                sprintf(tokenNode->value,"%d",convertHexToDec(value));//将整数转字符串
+            }else if(!strncmp(value,"0",1)){
+                valueLength += 1;
+                tokenNode->value = malloc(valueLength);
+                sprintf(tokenNode->value,"%d",convertOctToDec(value));
+            }else{
+                valueLength += 1;
+                tokenNode->value = malloc(valueLength);
+                strncpy(tokenNode->value,value,valueLength);
+            }
+        }
+        else if(value != NULL){
             valueLength = strlen(value) + 1;
             tokenNode->value = malloc(valueLength*sizeof(char));
             strncpy(tokenNode->value,value,valueLength);
@@ -74,6 +91,10 @@ pNode newNode(uint32_t lineno,nodeType type,
 
         va_end(vaList);
         return currentNode;
+}
+
+void freeNode(pNode currentNode){
+
 }
 
 /**

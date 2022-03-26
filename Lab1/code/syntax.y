@@ -11,14 +11,21 @@
 
 %locations
 
-// types
-
+/*
+    在bison语法分析器中，每个语法符号，包括记号和非终结符，都可以有一个相应的值。
+    默认情况下所有的符号值都是整数，但是真正有用的程序通常需要更多有价值的符号值。
+    而%union，正如它的名字所暗示的那样，可以用来为符号值创建一个C语言的union类型。
+*/
+//声明联合类型，以上说明摘自flex && bison
 %union{
     pNode node; 
 }
 
-// tokens
-
+/*
+    一旦联合类型被定义，我们需要告诉bison每种语法符号所用的值类型，这通过防止在尖括号
+    （<>）中的联合类型的相应成员名字来确定。
+*/
+//词法单元
 %token <node> INT
 %token <node> FLOAT
 %token <node> ID
@@ -46,8 +53,7 @@
 %type <node> DefList Def Dec DecList                //  Local Definitions
 %type <node> Exp Args                               //  Expressions
 
-// precedence and associativity
-
+//优先级定义，从上到下优先级变强
 %right ASSIGNOP
 %left OR
 %left AND
