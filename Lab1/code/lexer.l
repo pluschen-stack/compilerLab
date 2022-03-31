@@ -88,15 +88,15 @@ FLOAT {digit}+"."{digit}+|{digit}*"."{digit}+[eE][+-]?{digit}+|{digit}+"."{digit
 {INT} { yylval.node = newTokenNode(yylineno,INT_TYPE, "INT", yytext); return INT;}
 {FLOAT} { yylval.node = newTokenNode(yylineno, FLOAT_TYPE, "FLOAT", yytext); return FLOAT;}
 
-0[0-9]+ {lexerror = true; fprintf(stderr,"Error type A at Line %d: Illegal octal number \'%s\'.\n", yylineno, yytext);}
-0[xX][0-9a-zA-Z]+ {lexerror = true; fprintf(stderr,"Error type A at Line %d: Illegal hexadecimal number \'%s\'.\n", yylineno, yytext);}
-{digit}+{ID}  { lexerror = true; printf("Error type A at Line %d: 非法ID \"%s\".\n", yylineno, yytext); }
-"."{digit}+ { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
-{digit}+"." { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
-{digit}*"."{digit}+[eE] { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
-{digit}+"."{digit}*[eE] { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
-{digit}+[eE][+-]?{digit}* { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
-"."[eE][+-]?{digit}+ { lexerror = true; printf("Error type A at Line %d: 非法浮点数 \"%s\".\n", yylineno, yytext); }
-. { lexerror = true; fprintf(stderr,"Error type A at Line %d: 未知符号 \'%s\'.\n", yylineno, yytext); }
+0[0-9]+ {lexerror = true; fprintf(stderr,"Error type A at Line %d: Illegal octal number \'%s\'.\n", yylineno, yytext); yylval.node = newTokenNode(yylineno,INT_TYPE, "INT", 0); return INT;}
+0[xX][0-9a-zA-Z]+ {lexerror = true; fprintf(stderr,"Error type A at Line %d: Illegal hexadecimal number \'%s\'.\n", yylineno, yytext); yylval.node = newTokenNode(yylineno,INT_TYPE, "INT", 0); return INT;}
+{digit}+{ID}  { lexerror = true; printf("Error type A at Line %d: Illegal identifier \"%s\".\n", yylineno, yytext); }
+"."{digit}+ { lexerror = true; printf("Error type A at Line %d: Illegal floating point number \"%s\".\n", yylineno, yytext); }
+{digit}+"." { lexerror = true; printf("Error type A at Line %d: Illegal floating point number \"%s\".\n", yylineno, yytext); }
+{digit}*"."{digit}+[eE] { lexerror = true; printf("Error type A at Line %d: Illegal floating point number \"%s\".\n", yylineno, yytext); }
+{digit}+"."{digit}*[eE] { lexerror = true; printf("Error type A at Line %d: Illegal floating point number \"%s\".\n", yylineno, yytext); }
+{digit}+[eE][+-]?{digit}* { lexerror = true; printf("Error type A at Line %d: Illegal floating point number \"%s\".\n", yylineno, yytext); }
+"."[eE][+-]?{digit}+ { lexerror = true; printf("Error type A at Line %d: Illegal floating point number \"%s\".\n", yylineno, yytext); }
+. { lexerror = true; fprintf(stderr,"Error type A at Line %d: Mysterious character \'%s\'.\n", yylineno, yytext); }
 
 %%
