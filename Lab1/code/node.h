@@ -40,8 +40,8 @@ typedef Node* pNode;
 
 pNode newTokenNode(uint32_t lineno,nodeType type,
     const char *name,const char *value);
-pNode newNode(uint32_t lineno,nodeType type,
+pNode newSyntaxNode(uint32_t lineno,nodeType type,
     const char *name,int argc,...);
 void printSyntaxTree(pNode currentNode,int height);
-
+void freeNode(pNode currentNode);
 #endif
