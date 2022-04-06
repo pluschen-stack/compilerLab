@@ -1,0 +1,6 @@
+int i;
+float k;
+int func(){
+    float i = .567;
+    float j = .56e;
+}
