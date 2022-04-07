@@ -1,0 +1,14 @@
+int lexerror;
+
+struct aStruct{
+    int i;
+};
+
+int foo(){
+    struct aStruct b;
+    b.i = 1;
+}
+
+int main(){
+    int i = 1;
+}

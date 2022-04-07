@@ -1,5 +1,6 @@
 #include "node.h"
 #include "syntax.tab.h"
+#include "semantics.h"
 
 extern pNode root;
 
@@ -37,7 +38,9 @@ int main(int argc, char **argv)
     /*如果既没有词法分析错误也没有语法分析错误就打印先根遍历打印语法树*/
     if (!lexerror && !syntaxerror)
     {
-        printSyntaxTree(root, 0);
+        //printSyntaxTree(root, 0);
+        pSymbolTable symbolTable= initSymbolTable();
+        freeSymbolTable(symbolTable);
     }
     freeNode(root);
     return 0;
