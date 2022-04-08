@@ -1,6 +1,14 @@
-struct hello{
+struct a1{
     int i;
-    int j;
+    
+};
+
+int k;
+int i;
+
+struct a2{
+    int i;
+    struct a1 j;
 };
 
 struct {

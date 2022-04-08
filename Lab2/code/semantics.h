@@ -10,9 +10,10 @@
 #define SET_STACK_HEAD(s,i)  if(s){s->stackArray[s->stackDepth]=i;}
 #define GET_HASH_HEAD(h,c) h?h->hashArray[c]:NULL
 #define SET_HASH_HEAD(h,c,i) if(h){h->hashArray[c]=i;}
+#define SET_FEILDLIST_NAME(f,n) if(f->name){FREE(f->name);f->name = newString(n);}else{f->name=newString(n);}
 
 #ifdef DEBUGON
-#define print(s) printf("%s\n",s);
+#define print(s) fprintf(stdout, "%d %s\n", __LINE__,s);
 #else
 #define print(s) 
 #endif
@@ -99,6 +100,7 @@ struct SymbolTable_
 {
     pHashTable hashTable;
     pStack stack;
+    unsigned unamedStructNum;//未被命名的结构体
 };
 
 typedef enum _errorType {
@@ -129,13 +131,27 @@ pStack newStack();
 void freeStack(pStack stack);
 pSymbolTable initSymbolTable();
 void freeSymbolTable(pSymbolTable symbolTable);
+pTableItem newTableItem(int depth,pFieldList feildList);
+void freeTableItem(pTableItem tableItem);
+bool isStructDef(pTableItem tableItem);
 
 pType newType(Kind kind, ...);
-void freeTableItem(pTableItem tableItem);
+pType copyType(pType srcType);
+void printType(pType type);
+
+pFieldList newFieldList(char *name, pType type);
+void printFieldList(pFieldList fieldList);
 void freeFieldList(pFieldList feildList);
+pFieldList copyFieldList(pFieldList srcFeildList);
+
+
 void startSemanticAnalysis(pNode currentNode);
-pTableItem newTableItem(int depth,pFieldList feildList);
 void ExtDef(pNode currentNode);
 pType Specifier(pNode currentNode);
 pType StructSpecifier(pNode currentNode);
+void DefList(pNode currentNode, pTableItem structureItem);
+void Def(pNode currentNode, pTableItem structureItem);
+void DecList(pNode currentNode, pType type, pTableItem structureItem);
+void Dec(pNode currentNode, pType type, pTableItem structureItem);
+pFieldList VarDec(pNode currentNode, pType type);
 #endif
