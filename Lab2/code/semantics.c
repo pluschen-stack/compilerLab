@@ -199,6 +199,30 @@ pType copyType(pType srcType)
     return p;
 }
 
+bool checkType(pType type1, pType type2) {
+    if (type1 == NULL || type2 == NULL) return true;
+    if (type1->kind == FUNCTION || type2->kind == FUNCTION) {
+        /*  如果比较两个的是函数，应当比较它们的名字，而不以checkType的判断为准，
+        因为函数名不会被重定义
+        */
+        return false;
+    }
+    if (type1->kind != type2->kind)
+        return false;
+    else {
+        switch (type1->kind) {
+            case BASIC:
+                return type1->u.basic == type2->u.basic;
+            case ARRAY:
+                return checkType(type1->u.array.elem, type2->u.array.elem);
+            case STRUCTURE:
+                return !strcmp(type1->u.structure.name,
+                               type2->u.structure.name);
+                //这个对于大多数结构体好像返回的都是true，因为设计不合理。。
+        }
+    }
+}
+
 void freeType(pType type)
 {
     assert(type != NULL);
@@ -435,6 +459,38 @@ pStack newStack()
 }
 
 /**
+ * @brief 清除符号表的栈的最高层
+ * 
+ * @param symbolTable 一个符号表
+ */
+void clearHeadLayerStack(pSymbolTable symbolTable) {
+    assert(symbolTable != NULL);
+    pStack stack = symbolTable->stack;
+    pHashTable hashTable = symbolTable->hashTable;
+    pTableItem temp = GET_STACK_HEAD(stack);
+    while (temp) {
+        pTableItem tobeFree = temp;
+        temp = temp->nextSymbol;
+        unsigned hashCode = hash_pjw(tobeFree->field->name);
+        //  如果要删除的项在hash表最内层那就很容易，直接删掉链接就好了
+        if (tobeFree == (pTableItem)GET_HASH_HEAD(hashTable,hashCode)){
+            SET_HASH_HEAD(hashTable,hashCode,tobeFree->nextHash);
+        }
+        //  如果要删除的项在hash表的中间层及更后面
+        else {
+            pTableItem prev = GET_HASH_HEAD(hashTable,hashCode);
+            //  因为prev肯定不是了，所以直接比较它的儿子
+            while(prev->nextHash != tobeFree){
+                prev = prev->nextHash;
+            }
+            prev->nextHash = tobeFree->nextHash;
+        }
+        freeTableItem(tobeFree);
+    }
+    SET_STACK_HEAD(stack,NULL);
+}
+
+/**
  * @brief 释放栈空间，需要注意的是由于这个函数需配合freeHashTable使用，并且在其后调用，不然存在内存泄露
  *
  * @param stack 栈
@@ -489,11 +545,12 @@ void printSymbolTable(pSymbolTable table)
 /**
  * @brief 这个函数的实现对于结构体的定义，也就是结构体中的变量到底算第几级
  * 有问题，如果不影响验收就不改了，当然也有可能是我还没有想明白
- * 
- * @param table 
- * @param item 
- * @return true 
- * @return false 
+ * 补充：根据假设七可知可以不用考虑这种问题
+ *
+ * @param table
+ * @param item
+ * @return true
+ * @return false
  */
 bool checkTableItemConflict(pSymbolTable table, pTableItem item)
 {
@@ -772,14 +829,40 @@ void Dec(pNode currentNode, pType type, pTableItem structureItem)
     // Dec -> VarDec ASSIGNOP Exp
     if (child->brother)
     {
-        // //处在结构体定义内
-        // if(!structureItem){
-        //     VarDec(currentNode,type);
-        // }
-        // //在函数的定义语句中
-        // else{
-
-        // }
+        //处在结构体定义内
+        if(!structureItem){
+            pError(REDEF_FEILD, currentNode->lineno,
+                   NULL);
+        }
+        //在函数的定义语句中的赋值语句
+        else{
+            // 判断赋值类型是否相符
+            //如果成功，注册该符号
+            pTableItem tableItem = newTableItem(
+                symbolTable->stack->stackDepth,VarDec(child, type));
+            pType exptype = Exp(child->brother->brother);
+            if (checkTableItemConflict(symbolTable, tableItem)) {
+                pError(REDEF_VAR, currentNode->lineno, tableItem->field->name);
+                freeTableItem(tableItem);
+            }
+            if (!checkType(tableItem->field->type, exptype)) {
+                //类型不相符
+                //报错
+                pError(TYPE_MISMATCH_ASSIGN, currentNode->lineno,
+                       NULL);
+                freeTableItem(tableItem);
+            }
+            if (tableItem->field->type && tableItem->field->type->kind == ARRAY) {
+                //报错，对非basic类型赋值
+                pError(TYPE_MISMATCH_ASSIGN, currentNode->lineno,
+                       NULL);
+                freeTableItem(tableItem);
+            } else {
+                insertTableItem(symbolTable, tableItem);
+            }
+            // exp不出意外应该返回一个无用的type，删除
+            if (exptype) freeType(exptype);
+        }
     }
     // Dec -> VarDec
     else
@@ -822,6 +905,14 @@ void Dec(pNode currentNode, pType type, pTableItem structureItem)
         //在函数的定义语句中
         else
         {
+            // 非结构体内，判断返回的item有无冲突，无冲突放入表中，有冲突报错就删除
+            pTableItem tableItem = newTableItem(symbolTable->stack->stackDepth,VarDec(child, type));
+            if (checkTableItemConflict(symbolTable, tableItem)) {
+                pError(REDEF_VAR, currentNode->lineno, tableItem->field->name);
+                freeTableItem(tableItem);
+            } else {
+                insertTableItem(symbolTable, tableItem);
+            }
         }
     }
 }
@@ -894,7 +985,7 @@ void FunDec(pNode currentNode, pType type)
     if (!strcmp(child->brother->brother->name, "VarList"))
     {
         unsigned argc = 0;
-        tableItem->field->type->u.function.argv = VarList(child->brother->brother,&argc);
+        tableItem->field->type->u.function.argv = VarList(child->brother->brother, &argc);
         tableItem->field->type->u.function.argc = argc;
     }
 
@@ -910,31 +1001,37 @@ void FunDec(pNode currentNode, pType type)
     }
 }
 
-pFieldList VarList(pNode currentNode,int* argc)
+pFieldList VarList(pNode currentNode, int *argc)
 {
     /*
     VarList:            ParamDec COMMA VarList
         |               ParamDec
     */
-    assert(currentNode!=NULL);
+    assert(currentNode != NULL);
     STACK_INC_DEPTH(symbolTable->stack);
-    pFieldList head = NULL,tail = NULL;
+    pFieldList head = NULL, tail = NULL;
     pNode child = currentNode->child;
     while (child)
     {
-        if(head){
+        if (head)
+        {
             tail->tail = copyFieldList(ParamDec(child));
-            if(tail->tail){
+            if (tail->tail)
+            {
                 tail = tail->tail;
-                (*argc)++;//后面的参数有可能重复定义，只有当这个参数不是重复定义的时候才加一
+                (*argc)++; //后面的参数有可能重复定义，只有当这个参数不是重复定义的时候才加一
             }
-        }else{
+        }
+        else
+        {
             head = copyFieldList(ParamDec(child));
             tail = head;
-            (*argc)++;//第一个参数肯定不会重复定义，直接加一
+            (*argc)++; //第一个参数肯定不会重复定义，直接加一
         }
-        if(child->brother) child = child->brother->brother->child;
-        else child = NULL;
+        if (child->brother)
+            child = child->brother->brother->child;
+        else
+            child = NULL;
     }
     STACK_DEC_DEPTH(symbolTable->stack);
     return head;
@@ -945,25 +1042,366 @@ pFieldList ParamDec(pNode currentNode)
     /*
     ParamDec:           Specifier VarDec
     */
-    assert(currentNode!=NULL);
+    assert(currentNode != NULL);
     pNode child = currentNode->child;
     pType type = Specifier(child);
-    pTableItem tableItem = newTableItem(symbolTable->stack->stackDepth,VarDec(child->brother,type));
+    pTableItem tableItem = newTableItem(symbolTable->stack->stackDepth, VarDec(child->brother, type));
 
-    if (type) freeType(type);
+    if (type)
+        freeType(type);
     // 重复定义
-    if (checkTableItemConflict(symbolTable, tableItem)) {
+    if (checkTableItemConflict(symbolTable, tableItem))
+    {
         pError(REDEF_VAR, currentNode->lineno, tableItem->field->name);
         freeTableItem(tableItem);
         return NULL;
-    } else {
-        insertTableItem(symbolTable,tableItem);
+    }
+    else
+    {
+        insertTableItem(symbolTable, tableItem);
         return tableItem->field;
     }
 }
 
-void CompSt(pNode currentNode, pType type)
+/**
+ * @brief 这是一个语句块
+ * 
+ * @param currentNode 
+ * @param returnType 如果是函数的语句块就是函数的返回类型，否则为空
+ */
+void CompSt(pNode currentNode, pType returnType)
 {
     /*
+    CompSt:             LC DefList StmtList RC  
+     */
+    assert(currentNode != NULL);
+    //局部变量了，所以加一层
+    STACK_INC_DEPTH(symbolTable->stack);
+    pNode child = currentNode->child;
+    if(child->brother) DefList(child->brother,NULL);
+    if(child->brother->brother) StmtList(child->brother->brother,returnType);
+    clearHeadLayerStack(symbolTable);
+    STACK_DEC_DEPTH(symbolTable->stack);
+}
+
+
+void StmtList(pNode currentNode, pType returnType){
+    /*
+    StmtList:           Stmt StmtList
+        |         e                   
     */
+    while (currentNode) {
+        Stmt(currentNode->child, returnType);
+        currentNode = currentNode->child->brother;
+    }
+}
+
+void Stmt(pNode currentNode, pType returnType){
+    /*
+    Stmt:               Exp SEMI 
+        |               CompSt 
+        |               RETURN Exp SEMI
+        |               IF LP Exp RP Stmt %prec LOWER_THAN_ELSE
+        |               IF LP Exp RP Stmt ELSE Stmt
+        |               WHILE LP Exp RP Stmt     
+    */
+    pType expType = NULL;
+    // Stmt -> Exp SEMI
+    if (!strcmp(currentNode->child->name, "Exp")) expType = Exp(currentNode->child);
+
+    // Stmt -> CompSt
+    else if (!strcmp(currentNode->child->name, "CompSt"))
+        CompSt(currentNode->child, returnType);
+
+    // Stmt -> RETURN Exp SEMI
+    else if (!strcmp(currentNode->child->name, "RETURN")) {
+        expType = Exp(currentNode->child->brother);
+
+        // check return type
+        if (!checkType(returnType, expType))
+            pError(TYPE_MISMATCH_RETURN, currentNode->lineno,
+                   "Type mismatched for return.");
+    }
+
+    // Stmt -> IF LP Exp RP Stmt
+    else if (!strcmp(currentNode->child->name, "IF")) {
+        pNode stmt = currentNode->child->brother->brother->brother->brother;
+        expType = Exp(currentNode->child->brother->brother);
+        Stmt(stmt, returnType);
+        // Stmt -> IF LP Exp RP Stmt ELSE Stmt
+        if (stmt->brother != NULL) Stmt(stmt->brother->brother, returnType);
+    }
+
+    // Stmt -> WHILE LP Exp RP Stmt
+    else if (!strcmp(currentNode->child->name, "WHILE")) {
+        expType = Exp(currentNode->child->brother->brother);
+        Stmt(currentNode->child->brother->brother->brother->brother, returnType);
+    }
+
+    if (expType) freeType(expType);
+}
+
+/**
+ * @brief 困了
+ * 
+ * @param currentNode 
+ * @return pType 
+ */
+pType Exp(pNode currentNode){
+    assert(currentNode != NULL);
+    /*  Exp -> Exp ASSIGNOP Exp
+            | Exp AND Exp
+            | Exp OR Exp
+            | Exp RELOP Exp
+            | Exp PLUS Exp
+            | Exp MINUS Exp
+            | Exp STAR Exp
+            | Exp DIV Exp
+            | LP Exp RP
+            | MINUS Exp
+            | NOT Exp
+            | ID LP Args RP
+            | ID LP RP
+            | Exp LB Exp RB
+            | Exp DOT ID
+            | ID
+            | INT
+            | FLOAT
+    */
+    pNode child = currentNode->child;
+    //二值运算
+    if (!strcmp(child->name, "Exp")) {
+        // 基本数学运算符
+        if (strcmp(child->brother->name, "LB") && strcmp(child->brother->name, "DOT")) {
+            pType p1 = Exp(child);
+            pType p2 = Exp(child->brother->brother);
+            pType returnType = NULL;
+
+            // Exp -> Exp ASSIGNOP Exp
+            if (!strcmp(child->brother->name, "ASSIGNOP")) {
+                //检查左值
+                pNode lchild = child->child;
+
+                if (!strcmp(lchild->name, "FLOAT") ||
+                    !strcmp(lchild->name, "INT")) {
+                    //报错，左值
+                    pError(LEFT_VAR_ASSIGN, child->lineno,
+                           NULL);
+
+                } else if (!strcmp(lchild->name, "ID") ||
+                           !strcmp(lchild->brother->name, "LB") ||
+                           !strcmp(lchild->brother->name, "DOT")) {
+                    if (!checkType(p1, p2)) {
+                        //报错，类型不匹配
+                        pError(TYPE_MISMATCH_ASSIGN, child->lineno,NULL);
+                    } else
+                        returnType = copyType(p1);
+                } else {
+                    //报错，左值
+                    pError(LEFT_VAR_ASSIGN, child->lineno,NULL);
+                }
+
+            }
+            // Exp -> Exp AND Exp
+            //      | Exp OR Exp
+            //      | Exp RELOP Exp
+            //      | Exp PLUS Exp
+            //      | Exp MINUS Exp
+            //      | Exp STAR Exp
+            //      | Exp DIV Exp
+            else {
+                if (p1 && p2 && (p1->kind == ARRAY || p2->kind == ARRAY)) {
+                    //报错，数组，结构体运算
+                    pError(TYPE_MISMATCH_OP, child->lineno, NULL);
+                } else if (!checkType(p1, p2)) {
+                    //报错，类型不匹配
+                    pError(TYPE_MISMATCH_OP, child->lineno,NULL);
+                } else {
+                    if (p1 && p2) {
+                        returnType = copyType(p1);
+                    }
+                }
+            }
+
+            if (p1) freeType(p1);
+            if (p2) freeType(p2);
+            return returnType;
+        }
+        // 数组和结构体访问
+        else {
+            // Exp -> Exp LB Exp RB
+            if (!strcmp(child->brother->name, "LB")) {
+                //数组
+                pType p1 = Exp(child);
+                pType p2 = Exp(child->brother->brother);
+                pType returnType = NULL;
+
+                if (!p1) {
+                    // 第一个exp为null，上层报错，这里不用再管
+                } else if (p1 && p1->kind != ARRAY) {
+                    //报错，非数组使用[]运算符
+                    pError(NOT_A_ARRAY, child->lineno, child->child->value);
+                } else if (!p2 || p2->kind != BASIC ||
+                           p2->u.basic != INT_TYPE) {
+                    //报错，不用int索引[]
+                    pError(NOT_A_INT, child->lineno,child->brother->brother->child->value);
+                } else {
+                    returnType = copyType(p1->u.array.elem);
+                }
+                if (p1) freeType(p1);
+                if (p2) freeType(p2);
+                return returnType;
+            }
+            // Exp -> Exp DOT ID
+            else {
+                pType p1 = Exp(child);
+                pType returnType = NULL;
+                if (!p1 || p1->kind != STRUCTURE ||
+                    !p1->u.structure.name) {
+                    //报错，对非结构体使用.运算符
+                    pError(ILLEGAL_USE_DOT, child->lineno, "Illegal use of \".\".");
+                    if (p1) freeType(p1);
+                } else {
+                    pNode ref_id = child->brother->brother;
+                    pFieldList structfield = p1->u.structure.structureField;
+                    while (structfield != NULL) {
+                        if (!strcmp(structfield->name, ref_id->value)) {
+                            break;
+                        }
+                        structfield = structfield->tail;
+                    }
+                    if (structfield == NULL) {
+                        //报错，没有可以匹配的域名
+                        pError(NONEXISTFIELD,currentNode->lineno,NULL);
+                    } else {
+                        returnType = copyType(structfield->type);
+                    }
+                }
+                if (p1) freeType(p1);
+                return returnType;
+            }
+        }
+    }
+    //单目运算符
+    // Exp -> MINUS Exp
+    //      | NOT Exp
+    else if (!strcmp(child->name, "MINUS") || !strcmp(child->name, "NOT")) {
+        pType p1 = Exp(child->brother);
+        pType returnType = NULL;
+        if (!p1 || p1->kind != BASIC) {
+            //报错，数组，结构体运算
+            pError(TYPE_MISMATCH_OP,currentNode->lineno,NULL);
+        } else {
+            returnType = copyType(p1);
+        }
+        if (p1) freeType(p1);
+        return returnType;
+    } else if (!strcmp(child->name, "LP")) {
+        return Exp(child->brother);
+    }
+    // Exp -> ID LP Args RP
+    //		| ID LP RP
+    else if (!strcmp(child->name, "ID") && child->brother) {
+        pTableItem funcInfo = getSymbolTableItem(symbolTable, child->value);
+
+        // function not find
+        if (funcInfo == NULL) {
+            char msg[100] = {0};
+            sprintf(msg, "Undefined function \"%s\".", child->value);
+            pError(UNDEF_FUNC, currentNode->lineno, msg);
+            return NULL;
+        } else if (funcInfo->field->type->kind != FUNCTION) {
+            char msg[100] = {0};
+            sprintf(msg, "\"i\" is not a function.", child->value);
+            pError(NOT_A_FUNC, currentNode->lineno, msg);
+            return NULL;
+        }
+        // Exp -> ID LP Args RP
+        else if (!strcmp(child->brother->brother->name, "Args")) {
+            Args(child->brother->brother, funcInfo);
+            return copyType(funcInfo->field->type->u.function.returnType);
+        }
+        // Exp -> ID LP RP
+        else {
+            if (funcInfo->field->type->u.function.argc != 0) {
+                char msg[100] = {0};
+                sprintf(msg,
+                        "too few arguments to function \"%s\", except %d args.",
+                        funcInfo->field->name,
+                        funcInfo->field->type->u.function.argc);
+                pError(FUNC_AGRC_MISMATCH, currentNode->lineno, msg);
+            }
+            return copyType(funcInfo->field->type->u.function.returnType);
+        }
+    }
+    // Exp -> ID
+    else if (!strcmp(child->name, "ID")) {
+        pTableItem tp = getSymbolTableItem(symbolTable, child->value);
+        if (tp == NULL || isStructDef(tp)) {
+            char msg[100] = {0};
+            sprintf(msg, "Undefined variable \"%s\".", child->value);
+            pError(UNDEF_VAR, child->lineno, msg);
+            return NULL;
+        } else {
+            // good
+            return copyType(tp->field->type);
+        }
+    } else {
+        // Exp -> FLOAT
+        if (!strcmp(child->name, "FLOAT")) {
+            return newType(BASIC, FLOAT_TYPE);
+        }
+        // Exp -> INT
+        else {
+            return newType(BASIC, INT_TYPE);
+        }
+    }
+}
+
+void Args(pNode currentNode, pTableItem funcInfo) {
+    assert(currentNode != NULL);
+    // Args -> Exp COMMA Args
+    //       | Exp
+    // printTreeInfo(currentNode, 0);
+    pNode temp = currentNode;
+    pFieldList arg = funcInfo->field->type->u.function.argv;
+    // printf("-----function atgs-------\n");
+    // printFieldList(arg);
+    // printf("---------end-------------\n");
+    while (temp) {
+        if (arg == NULL) {
+            char msg[100] = {0};
+            sprintf(
+                msg, "too many arguments to function \"%s\", except %d args.",
+                funcInfo->field->name, funcInfo->field->type->u.function.argc);
+            pError(FUNC_AGRC_MISMATCH, currentNode->lineno, msg);
+            break;
+        }
+        pType realType = Exp(temp->child);
+        // printf("=======arg type=========\n");
+        // printType(realType);
+        // printf("===========end==========\n");
+        if (!checkType(realType, arg->type)) {
+            char msg[100] = {0};
+            sprintf(msg, "Function \"%s\" is not applicable for arguments.",
+                    funcInfo->field->name);
+            pError(FUNC_AGRC_MISMATCH, currentNode->lineno, msg);
+            if (realType) freeType(realType);
+            return;
+        }
+        if (realType) freeType(realType);
+
+        arg = arg->tail;
+        if (temp->child->brother) {
+            temp = temp->child->brother->brother;
+        } else {
+            break;
+        }
+    }
+    if (arg != NULL) {
+        char msg[100] = {0};
+        sprintf(msg, "too few arguments to function \"%s\", except %d args.",
+                funcInfo->field->name, funcInfo->field->type->u.function.argc);
+        pError(FUNC_AGRC_MISMATCH, currentNode->lineno, msg);
+    }
 }

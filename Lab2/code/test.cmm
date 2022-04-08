@@ -14,12 +14,8 @@ struct {
     int j;
 } a;
 
-int func(int i,int j,struct {
-        int a;
-        int b;
-    } c){
+int func(int i,int j){
     int j = 1;
-    int k = i;
-    
-
+    int k = 2;
+    return j;
 }
