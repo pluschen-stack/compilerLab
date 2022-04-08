@@ -1,12 +1,22 @@
 #ifndef SEMANTICS_H
 #define SEMANTICS_H
 
-
+#include"node.h"
 
 #define SYMBOL_TABLE_SIZE 0X3FFF
 #define FREE(p) if(p){free(p);p = NULL;} //安全的释放动态内存
 
-#include"node.h"
+#define GET_STACK_HEAD(s)  s?s->stackArray[s->stackDepth]:NULL
+#define SET_STACK_HEAD(s,i)  if(s){s->stackArray[s->stackDepth]=i;}
+#define GET_HASH_HEAD(h,c) h?h->hashArray[c]:NULL
+#define SET_HASH_HEAD(h,c,i) if(h){h->hashArray[c]=i;}
+
+#ifdef DEBUGON
+#define print(s) printf("%s\n",s);
+#else
+#define print(s) 
+#endif
+
 
 typedef struct Type_ *pType;
 typedef struct FieldList_ *pFieldList;
@@ -14,23 +24,17 @@ typedef struct HashTable_ *pHashTable;
 typedef struct TableItem_ *pTableItem;
 typedef struct Stack_ *pStack;
 typedef struct SymbolTable_ *pSymbolTable;
-
-struct Type_
-{
-    enum
-    {
-        BASIC,
-        ARRAY,
-        STRUCTURE,
-    } kind;
-    union
-    {
-        //  基本类型
-        enum
-        {
+typedef enum kind_ { BASIC, ARRAY, STRUCTURE } Kind;
+typedef enum {
             INT_TYPE_,//和之前的定义冲突了，因此这里小小的修改一下
             FLOAT_TYPE_//和之前的定义冲突了，因此这里小小的修改一下
-        } basic;
+        } BasicType;
+struct Type_
+{
+    Kind kind;
+    union
+    {
+        BasicType basic;
         //  数组类型信息包括元素类型大小构成
         struct
         {
@@ -38,7 +42,13 @@ struct Type_
             int size;
         } array;
         //  结构体类型信息是一个链表
-        pFieldList structure;
+        struct{
+            char *name;
+            pFieldList structureField;
+        } structure;
+        /*
+        
+        */
     } u;
 };
 
@@ -120,4 +130,12 @@ void freeStack(pStack stack);
 pSymbolTable initSymbolTable();
 void freeSymbolTable(pSymbolTable symbolTable);
 
+pType newType(Kind kind, ...);
+void freeTableItem(pTableItem tableItem);
+void freeFieldList(pFieldList feildList);
+void startSemanticAnalysis(pNode currentNode);
+pTableItem newTableItem(int depth,pFieldList feildList);
+void ExtDef(pNode currentNode);
+pType Specifier(pNode currentNode);
+pType StructSpecifier(pNode currentNode);
 #endif

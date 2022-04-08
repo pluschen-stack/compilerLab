@@ -66,13 +66,17 @@ int convertOctToDec(const char *octStr){
     return decimal;
 }
 
-int testintuilc(){
-    // printf("%d\n",convertHexToDec("0x12"));
-    // printf("%d\n",convertHexToDec("0X23"));
-    // printf("%d\n",convertHexToDec("023"));
-    // printf("%d\n",convertHexToDec("0x"));
-
-    printf("%d\n",convertOctToDec("023"));
-    printf("%d\n",convertOctToDec("03"));
-    printf("%d\n",convertOctToDec("0"));
+/**
+ * @brief 将字符串进行一次拷贝，避免对引用的值修改
+ * 
+ * @param src 源字符串
+ * @return char* 复制后的新字符串
+ */
+inline char* newString(char* src) {
+    if (src == NULL) return NULL;
+    int length = strlen(src) + 1;
+    char* p = (char*)malloc(sizeof(char) * length);
+    assert(p != NULL);
+    strncpy(p, src, length);
+    return p;
 }

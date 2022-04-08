@@ -1,6 +1,4 @@
-int i;
-float k;
 int func(){
-    float i = .567;
-    float j = .56e;
+    int i[10];
+    i[0];
 }

@@ -1,14 +1,8 @@
-int lexerror;
-
-struct aStruct{
+struct hello{
     int i;
+    int j;
 };
 
-int foo(){
-    struct aStruct b;
-    b.i = 1;
-}
-
-int main(){
-    int i = 1;
-}
+struct {
+    int j;
+} a;

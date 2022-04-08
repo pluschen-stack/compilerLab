@@ -3,13 +3,14 @@
 #include "semantics.h"
 
 extern pNode root;
-
+extern pSymbolTable symbolTable;
 extern int yylineno;
 extern int yyparse();
 extern void yyrestart(FILE *);
 
 bool lexerror = false;
 bool syntaxerror = false;
+
 
 /**
  * @brief 启动程序
@@ -38,8 +39,9 @@ int main(int argc, char **argv)
     /*如果既没有词法分析错误也没有语法分析错误就打印先根遍历打印语法树*/
     if (!lexerror && !syntaxerror)
     {
-        //printSyntaxTree(root, 0);
-        pSymbolTable symbolTable= initSymbolTable();
+        // printSyntaxTree(root, 0);
+        symbolTable= initSymbolTable();
+        startSemanticAnalysis(root);
         freeSymbolTable(symbolTable);
     }
     freeNode(root);
