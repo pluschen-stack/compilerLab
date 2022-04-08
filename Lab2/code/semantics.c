@@ -106,6 +106,12 @@ pType newType(Kind kind, ...)
         type->u.structure.name = va_arg(vaList, char *);
         type->u.structure.structureField = va_arg(vaList, pFieldList);
         break;
+    case FUNCTION:
+        va_start(vaList, 3);
+        type->u.function.argc = va_arg(vaList, int);
+        type->u.function.argv = va_arg(vaList, pFieldList);
+        type->u.function.returnType = va_arg(vaList, pType);
+        break;
     default:
         perror("error kind");
         exit(1);
@@ -115,27 +121,40 @@ pType newType(Kind kind, ...)
     return type;
 }
 
-void printType(pType type) {
-    if (type == NULL) {
+void printType(pType type)
+{
+    if (type == NULL)
+    {
         printf("type is NULL.\n");
-    } else {
+    }
+    else
+    {
         printf("type kind: %d\n", type->kind);
-        switch (type->kind) {
-            case BASIC:
-                printf("type basic: %d\n", type->u.basic);
-                break;
-            case ARRAY:
-                printf("array size: %d\n", type->u.array.size);
-                printType(type->u.array.elem);
-                break;
-            case STRUCTURE:
-                if (!type->u.structure.name)
-                    printf("struct name is NULL\n");
-                else {
-                    printf("struct name is %s\n", type->u.structure.name);
-                }
-                printFieldList(type->u.structure.structureField);
-                break;
+        switch (type->kind)
+        {
+        case BASIC:
+            printf("type basic: %d\n", type->u.basic);
+            break;
+        case ARRAY:
+            printf("array size: %d\n", type->u.array.size);
+            printType(type->u.array.elem);
+            break;
+        case STRUCTURE:
+            if (!type->u.structure.name)
+                printf("struct name is NULL\n");
+            else
+            {
+                printf("struct name is %s\n", type->u.structure.name);
+            }
+            printFieldList(type->u.structure.structureField);
+            break;
+        case FUNCTION:
+            printf("function argc is %d\n", type->u.function.argc);
+            printf("function args:\n");
+            printFieldList(type->u.function.argv);
+            printf("function return type:\n");
+            printType(type->u.function.returnType);
+            break;
         }
     }
 }
@@ -143,31 +162,39 @@ void printType(pType type) {
 /**
  * @brief 用于复制type类型，在结构体内部定义中很有用，避免因为删除某一个Type导致出现其他
  * fieldList中的type不可以使用
- * 
- * @param srcType 
- * @return pType 
+ *
+ * @param srcType
+ * @return pType
  */
-pType copyType(pType srcType){
-    if (srcType == NULL) return NULL;
+pType copyType(pType srcType)
+{
+    if (srcType == NULL)
+        return NULL;
     pType p = (pType)malloc(sizeof(struct Type_));
     assert(p != NULL);
     p->kind = srcType->kind;
-    switch (p->kind) {
-        case BASIC:
-            p->u.basic = srcType->u.basic;
-            break;
-        case ARRAY:
-            p->u.array.elem = copyType(srcType->u.array.elem);
-            p->u.array.size = srcType->u.array.size;
-            break;
-        case STRUCTURE:
-            p->u.structure.name = newString(srcType->u.structure.name);
-            p->u.structure.structureField = copyFieldList(srcType->u.structure.structureField);
-            break;
-        default:
-            fprintf(stderr,"error kind in %s",__FUNCTION__);
-            exit(1);
-            break;
+    switch (p->kind)
+    {
+    case BASIC:
+        p->u.basic = srcType->u.basic;
+        break;
+    case ARRAY:
+        p->u.array.elem = copyType(srcType->u.array.elem);
+        p->u.array.size = srcType->u.array.size;
+        break;
+    case STRUCTURE:
+        p->u.structure.name = newString(srcType->u.structure.name);
+        p->u.structure.structureField = copyFieldList(srcType->u.structure.structureField);
+        break;
+    case FUNCTION:
+        p->u.function.argc = srcType->u.function.argc;
+        p->u.function.argv = copyFieldList(srcType->u.function.argv);
+        p->u.function.returnType = copyType(srcType->u.function.returnType);
+        break;
+    default:
+        fprintf(stderr, "error kind in %s", __FUNCTION__);
+        exit(1);
+        break;
     }
     return p;
 }
@@ -197,6 +224,18 @@ void freeType(pType type)
         }
         type->u.structure.structureField = NULL;
         break;
+    case FUNCTION:
+        freeType(type->u.function.returnType);
+        type->u.function.returnType = NULL;
+        temp = type->u.function.argv;
+        while (temp)
+        {
+            pFieldList toBeFree = temp;
+            temp = temp->tail;
+            freeFieldList(toBeFree);
+        }
+        type->u.function.argv = NULL;
+        break;
     }
     FREE(type);
 }
@@ -224,7 +263,7 @@ pTableItem newTableItem(int depth, pFieldList feildList)
  *
  * @param newTableItem 符号表项
  */
-void insertTableItem(pSymbolTable symbolTable,pTableItem newTableItem)
+void insertTableItem(pSymbolTable symbolTable, pTableItem newTableItem)
 {
     assert(newTableItem != NULL);
     unsigned int hashCode = hash_pjw(newTableItem->field->name);
@@ -285,13 +324,15 @@ pFieldList newFieldList(char *name, pType type)
 
 /**
  * @brief 方便debug所以很需要这个来检查错误
- * 
- * @param fieldList 
+ *
+ * @param fieldList
  */
-void printFieldList(pFieldList fieldList) {
+void printFieldList(pFieldList fieldList)
+{
     if (fieldList == NULL)
         printf("fieldList is NULL\n");
-    else {
+    else
+    {
         printf("fieldList name is: %s\n", fieldList->name);
         printf("FieldList Type:\n");
         printType(fieldList->type);
@@ -299,16 +340,21 @@ void printFieldList(pFieldList fieldList) {
     }
 }
 
-pFieldList copyFieldList(pFieldList srcFeildList){
+pFieldList copyFieldList(pFieldList srcFeildList)
+{
     pFieldList head = NULL, cur = NULL;
     pFieldList temp = srcFeildList;
 
-    while (temp) {
-        if (!head) {
+    while (temp)
+    {
+        if (!head)
+        {
             head = newFieldList(temp->name, copyType(temp->type));
             cur = head;
             temp = temp->tail;
-        } else {
+        }
+        else
+        {
             cur->tail = newFieldList(temp->name, copyType(temp->type));
             cur = cur->tail;
             temp = temp->tail;
@@ -320,7 +366,8 @@ void freeFieldList(pFieldList feildList)
 {
     assert(feildList != NULL);
     FREE(feildList->name);
-    if(feildList->type) freeType(feildList->type);
+    if (feildList->type)
+        freeType(feildList->type);
     feildList->type == NULL;
     FREE(feildList);
 }
@@ -415,17 +462,53 @@ pSymbolTable initSymbolTable()
     return symbolTable;
 }
 
-bool checkTableItemConflict(pSymbolTable table, pTableItem item) {
+void printSymbolTable(pSymbolTable table)
+{
+    printf("----------------hash_table----------------\n");
+    for (int i = 0; i < SYMBOL_TABLE_SIZE; i++)
+    {
+        pTableItem item = GET_HASH_HEAD(table->hashTable, i);
+        if (item)
+        {
+            printf("[%d]", i);
+            while (item)
+            {
+                printf(" -> name: %s depth: %d\n", item->field->name,
+                       item->symbolDepth);
+                printf("========FiledList========\n");
+                printFieldList(item->field);
+                printf("===========End===========\n");
+                item = item->nextHash;
+            }
+            printf("\n");
+        }
+    }
+    printf("-------------------end--------------------\n");
+}
+
+/**
+ * @brief 这个函数的实现对于结构体的定义，也就是结构体中的变量到底算第几级
+ * 有问题，如果不影响验收就不改了，当然也有可能是我还没有想明白
+ * 
+ * @param table 
+ * @param item 
+ * @return true 
+ * @return false 
+ */
+bool checkTableItemConflict(pSymbolTable table, pTableItem item)
+{
     pTableItem temp = getSymbolTableItem(table, item->field->name);
-    if (temp == NULL) return false;
-    while (temp) {
-        if (!strcmp(temp->field->name, item->field->name)) {
-            //因为结构体只能在函数外定义，所以直接出错
+    if (temp == NULL)
+        return false;
+    while (temp)
+    {
+        if (!strcmp(temp->field->name, item->field->name))
+        {
             if (temp->field->type->kind == STRUCTURE ||
                 item->field->type->kind == STRUCTURE)
                 return true;
-            //其他非结构体就需要比较它们的深度才行
-            if (temp->symbolDepth == table->stack->stackDepth) return true;
+            if (temp->symbolDepth == table->stack->stackDepth)
+                return true;
         }
         temp = temp->nextHash;
     }
@@ -484,10 +567,12 @@ void ExtDef(pNode currentNode)
     pType type = Specifier(currentNode->child);
     if (!strcmp(secondChild->name, "ExtDecList"))
     {
-        // ExtDecList();
+        ExtDecList(secondChild, type);
     }
     else if (!strcmp(secondChild->name, "FunDec"))
     {
+        FunDec(secondChild, type);
+        CompSt(secondChild->brother, type);
     }
 }
 
@@ -524,10 +609,14 @@ pType Specifier(pNode currentNode)
     }
 }
 
-bool isStructDef(pTableItem tableItem){
-    if (tableItem == NULL) return false;
-    if (tableItem->field->type->kind != STRUCTURE) return false;
-    if (tableItem->field->type->u.structure.name) return false;
+bool isStructDef(pTableItem tableItem)
+{
+    if (tableItem == NULL)
+        return false;
+    if (tableItem->field->type->kind != STRUCTURE)
+        return false;
+    if (tableItem->field->type->u.structure.name)
+        return false;
     return true;
 }
 
@@ -549,14 +638,15 @@ pType StructSpecifier(pNode currentNode)
     if (!strcmp(child->name, "Tag"))
     {
         pTableItem structureItem = getSymbolTableItem(symbolTable, child->child->value);
-        
-        if (structureItem == NULL || !isStructDef(structureItem)) {
+
+        if (structureItem == NULL || !isStructDef(structureItem))
+        {
             pError(UNDEF_STRUCT, currentNode->lineno, child->child->value);
-        } else
+        }
+        else
             returnType = newType(
                 STRUCTURE, newString(structureItem->field->name),
                 copyFieldList(structureItem->field->type->u.structure.structureField));
-        
     }
     // OptTag -> ID | e
     else
@@ -582,28 +672,31 @@ pType StructSpecifier(pNode currentNode)
         {
             DefList(child, structureItem);
         }
-        
+
         //存在相同结构体定义
-        if (checkTableItemConflict(symbolTable, structureItem)) {
+        if (checkTableItemConflict(symbolTable, structureItem))
+        {
             pError(DUPLICATED_NAME, currentNode->lineno, structureItem->field->name);
             freeTableItem(structureItem);
         }
-        //不存在相同结构体定义 
-        else {
+        //不存在相同结构体定义
+        else
+        {
             returnType = newType(
                 STRUCTURE, newString(structureItem->field->name),
                 copyFieldList(structureItem->field->type->u.structure.structureField));
-            if (!strcmp(currentNode->child->brother->name, "OptTag")) {
+            if (!strcmp(currentNode->child->brother->name, "OptTag"))
+            {
                 insertTableItem(symbolTable, structureItem);
             }
             // OptTag -> e
-            else {
+            else
+            {
                 freeTableItem(structureItem);
             }
         }
-        
     }
-    
+
     return returnType;
 }
 
@@ -674,10 +767,11 @@ void Dec(pNode currentNode, pType type, pTableItem structureItem)
     Dec:                VarDec
         |               VarDec ASSIGNOP Exp
     */
-    assert(currentNode!=NULL);
+    assert(currentNode != NULL);
     pNode child = currentNode->child;
     // Dec -> VarDec ASSIGNOP Exp
-    if(child->brother){
+    if (child->brother)
+    {
         // //处在结构体定义内
         // if(!structureItem){
         //     VarDec(currentNode,type);
@@ -688,62 +782,188 @@ void Dec(pNode currentNode, pType type, pTableItem structureItem)
         // }
     }
     // Dec -> VarDec
-    else{
+    else
+    {
         //处在结构体定义内
-        if(structureItem){
+        if (structureItem)
+        {
 
-            pFieldList feildList = VarDec(child,type);
+            pFieldList feildList = VarDec(child, type);
             pFieldList structField = structureItem->field->type->u.structure.structureField;
             pFieldList last = NULL;
-            while (structField != NULL) {
+            while (structField != NULL)
+            {
                 // then we have to check
-                if (!strcmp(feildList->name, structField->name)) {
-                    pError(REDEF_FEILD,currentNode->lineno,feildList->name);
+                if (!strcmp(feildList->name, structField->name))
+                {
+                    pError(REDEF_FEILD, currentNode->lineno, feildList->name);
                     freeFieldList(feildList);
                     return;
-                } else {
+                }
+                else
+                {
                     last = structField;
                     structField = structField->tail;
                 }
             }
             //新建一个fieldlist,删除之前的item
-            if (last == NULL) {
+            if (last == NULL)
+            {
                 // that is good
                 structureItem->field->type->u.structure.structureField =
                     copyFieldList(feildList);
-            } else {
+            }
+            else
+            {
                 last->tail = copyFieldList(feildList);
             }
             freeFieldList(feildList);
         }
         //在函数的定义语句中
-        else{
-
+        else
+        {
         }
     }
-
 }
 
-pFieldList VarDec(pNode currentNode, pType type){
+pFieldList VarDec(pNode currentNode, pType type)
+{
     /*
-    VarDec:             ID 
+    VarDec:             ID
         |               VarDec LB INT RB
     */
     assert(currentNode != NULL);
     pNode child = currentNode->child;
     // VarDec -> ID
-    if(!strcmp(child->name,"ID")){
-        return newFieldList(child->value,copyType(type));
+    if (!strcmp(child->name, "ID"))
+    {
+        return newFieldList(child->value, copyType(type));
     }
     // VarDec -> VarDec LB INT RB
-    else{
+    else
+    {
         //需要注意的是ID在里面
         pType temp = type;
         while (child->child)
         {
-            temp = newType(ARRAY,copyType(temp),atoi(child->brother->brother->value));
+            temp = newType(ARRAY, copyType(temp), atoi(child->brother->brother->value));
             child = child->child;
         }
-        return newFieldList(child->value,temp);
+        return newFieldList(child->value, temp);
     }
+}
+
+void ExtDecList(pNode currentNode, pType type)
+{
+    /*
+    ExtDecList:         VarDec
+        |               VarDec COMMA ExtDecList
+    */
+    assert(currentNode != NULL);
+    pNode child = currentNode->child;
+    while (child)
+    {
+        pFieldList fieldList = VarDec(child, type);
+        pTableItem tableItem = newTableItem(symbolTable->stack->stackDepth, fieldList);
+        if (checkTableItemConflict(symbolTable, tableItem))
+        {
+            pError(REDEF_VAR, child->lineno, tableItem->field->name);
+            freeTableItem(tableItem);
+        }
+        else
+        {
+            insertTableItem(symbolTable, tableItem);
+        }
+        if (child->brother)
+            child = child->brother->brother->child;
+        else
+            child = NULL;
+    }
+}
+
+void FunDec(pNode currentNode, pType type)
+{
+    /*
+    FunDec:             ID LP VarList RP
+        |               ID LP RP
+    */
+    assert(currentNode != NULL);
+    pNode child = currentNode->child;
+    pTableItem tableItem = newTableItem(symbolTable->stack->stackDepth, newFieldList(child->value,
+                                                                                     newType(FUNCTION, 0, NULL, type)));
+    if (!strcmp(child->brother->brother->name, "VarList"))
+    {
+        unsigned argc = 0;
+        tableItem->field->type->u.function.argv = VarList(child->brother->brother,&argc);
+        tableItem->field->type->u.function.argc = argc;
+    }
+
+    if (checkTableItemConflict(symbolTable, tableItem))
+    {
+        pError(REDEF_FUNC, currentNode->lineno, tableItem->field->name);
+        freeTableItem(tableItem);
+        tableItem = NULL;
+    }
+    else
+    {
+        insertTableItem(symbolTable, tableItem);
+    }
+}
+
+pFieldList VarList(pNode currentNode,int* argc)
+{
+    /*
+    VarList:            ParamDec COMMA VarList
+        |               ParamDec
+    */
+    assert(currentNode!=NULL);
+    STACK_INC_DEPTH(symbolTable->stack);
+    pFieldList head = NULL,tail = NULL;
+    pNode child = currentNode->child;
+    while (child)
+    {
+        if(head){
+            tail->tail = copyFieldList(ParamDec(child));
+            if(tail->tail){
+                tail = tail->tail;
+                (*argc)++;//后面的参数有可能重复定义，只有当这个参数不是重复定义的时候才加一
+            }
+        }else{
+            head = copyFieldList(ParamDec(child));
+            tail = head;
+            (*argc)++;//第一个参数肯定不会重复定义，直接加一
+        }
+        if(child->brother) child = child->brother->brother->child;
+        else child = NULL;
+    }
+    STACK_DEC_DEPTH(symbolTable->stack);
+    return head;
+}
+
+pFieldList ParamDec(pNode currentNode)
+{
+    /*
+    ParamDec:           Specifier VarDec
+    */
+    assert(currentNode!=NULL);
+    pNode child = currentNode->child;
+    pType type = Specifier(child);
+    pTableItem tableItem = newTableItem(symbolTable->stack->stackDepth,VarDec(child->brother,type));
+
+    if (type) freeType(type);
+    // 重复定义
+    if (checkTableItemConflict(symbolTable, tableItem)) {
+        pError(REDEF_VAR, currentNode->lineno, tableItem->field->name);
+        freeTableItem(tableItem);
+        return NULL;
+    } else {
+        insertTableItem(symbolTable,tableItem);
+        return tableItem->field;
+    }
+}
+
+void CompSt(pNode currentNode, pType type)
+{
+    /*
+    */
 }

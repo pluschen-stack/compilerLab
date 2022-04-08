@@ -3,8 +3,7 @@ struct a1{
     
 };
 
-int k;
-int i;
+int j,k;
 
 struct a2{
     int i;
@@ -14,3 +13,13 @@ struct a2{
 struct {
     int j;
 } a;
+
+int func(int i,int j,struct {
+        int a;
+        int b;
+    } c){
+    int j = 1;
+    int k = i;
+    
+
+}

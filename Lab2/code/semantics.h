@@ -6,6 +6,8 @@
 #define SYMBOL_TABLE_SIZE 0X3FFF
 #define FREE(p) if(p){free(p);p = NULL;} //安全的释放动态内存
 
+#define STACK_INC_DEPTH(s) if(s)s->stackDepth++; //栈增长
+#define STACK_DEC_DEPTH(s) if(s)s->stackDepth--;
 #define GET_STACK_HEAD(s)  s?s->stackArray[s->stackDepth]:NULL
 #define SET_STACK_HEAD(s,i)  if(s){s->stackArray[s->stackDepth]=i;}
 #define GET_HASH_HEAD(h,c) h?h->hashArray[c]:NULL
@@ -25,7 +27,7 @@ typedef struct HashTable_ *pHashTable;
 typedef struct TableItem_ *pTableItem;
 typedef struct Stack_ *pStack;
 typedef struct SymbolTable_ *pSymbolTable;
-typedef enum kind_ { BASIC, ARRAY, STRUCTURE } Kind;
+typedef enum kind_ { BASIC, ARRAY, STRUCTURE,FUNCTION } Kind;
 typedef enum {
             INT_TYPE_,//和之前的定义冲突了，因此这里小小的修改一下
             FLOAT_TYPE_//和之前的定义冲突了，因此这里小小的修改一下
@@ -47,9 +49,12 @@ struct Type_
             char *name;
             pFieldList structureField;
         } structure;
-        /*
-        
-        */
+        // 函数
+        struct {
+            int argc;          // 函数参数个数
+            pFieldList argv;   // 函数的参数，使用fieldlist串联
+            pType returnType;  // 返回类型
+        } function;
     } u;
 };
 
@@ -130,6 +135,7 @@ void freeHashTable(pHashTable hashTable);
 pStack newStack();
 void freeStack(pStack stack);
 pSymbolTable initSymbolTable();
+void printSymbolTable(pSymbolTable table);
 void freeSymbolTable(pSymbolTable symbolTable);
 pTableItem newTableItem(int depth,pFieldList feildList);
 void freeTableItem(pTableItem tableItem);
@@ -154,4 +160,9 @@ void Def(pNode currentNode, pTableItem structureItem);
 void DecList(pNode currentNode, pType type, pTableItem structureItem);
 void Dec(pNode currentNode, pType type, pTableItem structureItem);
 pFieldList VarDec(pNode currentNode, pType type);
+void ExtDecList(pNode currentNode,pType type);
+void FunDec(pNode currentNode,pType type);
+void CompSt(pNode currentNode,pType type);
+pFieldList VarList(pNode currentNode,int* argc);
+pFieldList ParamDec(pNode currentNode);
 #endif
