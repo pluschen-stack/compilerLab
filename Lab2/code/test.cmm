@@ -1,21 +1,7 @@
-struct a1{
-    int i;
-    
-};
-
-int j,k;
-
-struct a2{
-    int i;
-    struct a1 j;
-};
-
-struct {
-    int j;
-} a;
-
 int func(int i,int j){
-    int j = 1;
-    int k = 2;
-    return j;
+    int c ;
+    int a ;
+    c = 1 + 2;
+
+    return c;
 }

@@ -41,8 +41,11 @@ int main(int argc, char **argv)
     {
         // printSyntaxTree(root, 0);
         symbolTable= initSymbolTable();
+        
         startSemanticAnalysis(root);
+        printSymbolTable(symbolTable);
         freeSymbolTable(symbolTable);
+        
     }
     freeNode(root);
     return 0;
