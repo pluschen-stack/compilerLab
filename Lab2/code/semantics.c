@@ -72,6 +72,7 @@ inline void pError(ErrorType type, int lineNumber, char *name)
         sprintf(msg, "Duplicated name \"%s\".", name);
     else if (type == UNDEF_STRUCT)
         sprintf(msg, "Undefined structure \"%s\".", name);
+        
     else
         printf("Unknown type\n");
     printf("Error type %d at Line %d: %s\n", type, lineNumber, msg);
@@ -1269,8 +1270,7 @@ pType Exp(pNode currentNode)
                     !strcmp(lchild->name, "INT"))
                 {
                     //报错，左值
-                    pError(LEFT_VAR_ASSIGN, child->lineno,
-                           NULL);
+                    pError(LEFT_VAR_ASSIGN, child->lineno,NULL);
                 }
                 else if (!strcmp(lchild->name, "ID") ||
                          !strcmp(lchild->brother->name, "LB") ||
@@ -1439,16 +1439,12 @@ pType Exp(pNode currentNode)
         // function not find
         if (funcInfo == NULL)
         {
-            char msg[100] = {0};
-            sprintf(msg, "Undefined function \"%s\".", child->value);
-            pError(UNDEF_FUNC, currentNode->lineno, msg);
+            pError(UNDEF_FUNC, currentNode->lineno, child->value);
             return NULL;
         }
         else if (funcInfo->field->type->kind != FUNCTION)
         {
-            char msg[100] = {0};
-            sprintf(msg, "\"i\" is not a function.", child->value);
-            pError(NOT_A_FUNC, currentNode->lineno, msg);
+            pError(NOT_A_FUNC, currentNode->lineno, child->value);
             return NULL;
         }
         // Exp -> ID LP Args RP
@@ -1473,9 +1469,7 @@ pType Exp(pNode currentNode)
         pTableItem tp = getSymbolTableItem(symbolTable, child->value);
         if (tp == NULL || isStructDef(tp))
         {
-            char msg[100] = {0};
-            sprintf(msg, "Undefined variable \"%s\".", child->value);
-            pError(UNDEF_VAR, child->lineno, msg);
+            pError(UNDEF_VAR, child->lineno, child->value);
             return NULL;
         }
         else
