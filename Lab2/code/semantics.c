@@ -468,8 +468,8 @@ void printStack(pStack stack)
     pTableItem item = GET_STACK_HEAD(stack);
     while (item)
     {
-        printf("[%d] -> name: %s depth: %d address :%p \n", hash_pjw(item->field->name),item->field->name,
-               item->symbolDepth,item);
+        printf("[%d] -> name: %s depth: %d address :%p \n", hash_pjw(item->field->name), item->field->name,
+               item->symbolDepth, item);
         printf("========FiledList========\n");
         printFieldList(item->field);
         printf("===========End===========\n");
@@ -499,13 +499,11 @@ void clearHeadLayerStack(pSymbolTable symbolTable)
         //  如果要删除的项在hash表最内层那就很容易，直接删掉链接就好了
         if (tobeFree == prev)
         {
-            perror("3");
             SET_HASH_HEAD(hashTable, hashCode, tobeFree->nextHash);
         }
         //  如果要删除的项在hash表的中间层及更后面
         else
         {
-            perror("4");
             //  因为prev肯定不是了，所以直接比较它的儿子
             while (prev->nextHash != tobeFree && prev->nextHash != NULL)
             {
@@ -559,7 +557,7 @@ void printSymbolTable(pSymbolTable table)
             while (item)
             {
                 printf(" -> name: %s depth: %d address:%p\n", item->field->name,
-                       item->symbolDepth,item);
+                       item->symbolDepth, item);
                 printf("========FiledList========\n");
                 printFieldList(item->field);
                 printf("===========End===========\n");
@@ -658,8 +656,9 @@ void ExtDef(pNode currentNode)
     else if (!strcmp(secondChild->name, "FunDec"))
     {
         FunDec(secondChild, type);
-
+        
         CompSt(secondChild->brother, type);
+        
     }
 }
 
@@ -860,7 +859,7 @@ void Dec(pNode currentNode, pType type, pTableItem structureItem)
     if (child->brother)
     {
         //处在结构体定义内
-        if (!structureItem)
+        if (structureItem)
         {
             pError(REDEF_FEILD, currentNode->lineno,
                    NULL);
@@ -1119,10 +1118,15 @@ void CompSt(pNode currentNode, pType returnType)
     //局部变量了，所以加一层
     STACK_INC_DEPTH(symbolTable->stack);
     pNode child = currentNode->child;
-    if (child->brother)
+    if (!strcmp(child->brother->name, "DefList"))
+    {
         DefList(child->brother, NULL);
-    if (child->brother->brother)
-        StmtList(child->brother->brother, returnType);
+        child = child->brother; //这条语句不是没有用的，因为DefList和StmtList可能为空
+    }
+    if (!strcmp(child->brother->name, "StmtList"))
+    {
+        StmtList(child->brother, returnType);
+    }
     clearHeadLayerStack(symbolTable);
     STACK_DEC_DEPTH(symbolTable->stack);
 }
@@ -1365,9 +1369,12 @@ pType Exp(pNode currentNode)
                     !p1->u.structure.name)
                 {
                     //报错，对非结构体使用.运算符
-                    pError(ILLEGAL_USE_DOT, child->lineno, "Illegal use of \".\".");
+                    pError(ILLEGAL_USE_DOT, child->lineno, NULL);
                     if (p1)
+                    {
                         freeType(p1);
+                        p1 = NULL;
+                    }
                 }
                 else
                 {
@@ -1384,15 +1391,17 @@ pType Exp(pNode currentNode)
                     if (structfield == NULL)
                     {
                         //报错，没有可以匹配的域名
-                        pError(NONEXISTFIELD, currentNode->lineno, NULL);
+                        pError(NONEXISTFIELD, currentNode->lineno, ref_id->value);
                     }
                     else
                     {
                         returnType = copyType(structfield->type);
                     }
                 }
-                if (p1)
+                if (p1){
                     freeType(p1);
+                }
+                    
                 return returnType;
             }
         }
@@ -1453,12 +1462,7 @@ pType Exp(pNode currentNode)
         {
             if (funcInfo->field->type->u.function.argc != 0)
             {
-                char msg[100] = {0};
-                sprintf(msg,
-                        "too few arguments to function \"%s\", except %d args.",
-                        funcInfo->field->name,
-                        funcInfo->field->type->u.function.argc);
-                pError(FUNC_AGRC_MISMATCH, currentNode->lineno, msg);
+                pError(FUNC_AGRC_MISMATCH, currentNode->lineno, funcInfo->field->name);
             }
             return copyType(funcInfo->field->type->u.function.returnType);
         }
@@ -1510,11 +1514,7 @@ void Args(pNode currentNode, pTableItem funcInfo)
     {
         if (arg == NULL)
         {
-            char msg[100] = {0};
-            sprintf(
-                msg, "too many arguments to function \"%s\", except %d args.",
-                funcInfo->field->name, funcInfo->field->type->u.function.argc);
-            pError(FUNC_AGRC_MISMATCH, currentNode->lineno, msg);
+            pError(FUNC_AGRC_MISMATCH, currentNode->lineno, funcInfo->field->name);
             break;
         }
         pType realType = Exp(temp->child);
@@ -1523,10 +1523,7 @@ void Args(pNode currentNode, pTableItem funcInfo)
         // printf("===========end==========\n");
         if (!checkType(realType, arg->type))
         {
-            char msg[100] = {0};
-            sprintf(msg, "Function \"%s\" is not applicable for arguments.",
-                    funcInfo->field->name);
-            pError(FUNC_AGRC_MISMATCH, currentNode->lineno, msg);
+            pError(FUNC_AGRC_MISMATCH, currentNode->lineno, funcInfo->field->name);
             if (realType)
                 freeType(realType);
             return;
@@ -1546,9 +1543,6 @@ void Args(pNode currentNode, pTableItem funcInfo)
     }
     if (arg != NULL)
     {
-        char msg[100] = {0};
-        sprintf(msg, "too few arguments to function \"%s\", except %d args.",
-                funcInfo->field->name, funcInfo->field->type->u.function.argc);
-        pError(FUNC_AGRC_MISMATCH, currentNode->lineno, msg);
+        pError(FUNC_AGRC_MISMATCH, currentNode->lineno, funcInfo->field->name);
     }
 }

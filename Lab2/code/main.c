@@ -33,7 +33,6 @@ int main(int argc, char **argv)
         perror(argv[1]);
         return 1;
     }
-    fprintf(stdout, "open the file %s\n", argv[1]);
     yyrestart(f);
     yyparse();
     /*如果既没有词法分析错误也没有语法分析错误就打印先根遍历打印语法树*/
@@ -43,7 +42,6 @@ int main(int argc, char **argv)
         symbolTable= initSymbolTable();
         
         startSemanticAnalysis(root);
-        printSymbolTable(symbolTable);
         freeSymbolTable(symbolTable);
         
     }
