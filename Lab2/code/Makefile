@@ -12,5 +12,7 @@ main-debug:syntax.y lexer.l main.c node.c util.c semantics.c
 .PHONY: clean test
 clean: 
 	-rm $(program) main *.o syntax.output *.tab.* lex.yy.c
-test:
-	python3 test.py
+havetodotest:
+	python3 havetodotest.py
+nothavetodotest:
+	python3 nothavetodotest.py

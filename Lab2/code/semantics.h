@@ -27,6 +27,7 @@ typedef struct HashTable_ *pHashTable;
 typedef struct TableItem_ *pTableItem;
 typedef struct Stack_ *pStack;
 typedef struct SymbolTable_ *pSymbolTable;
+typedef struct FuncDeclarationStack_ *pFuncDecStack;
 typedef enum kind_ { BASIC, ARRAY, STRUCTURE,FUNCTION } Kind;
 typedef enum {
             INT_TYPE_,//和之前的定义冲突了，因此这里小小的修改一下
@@ -108,6 +109,14 @@ struct SymbolTable_
     unsigned unamedStructNum;//未被命名的结构体
 };
 
+/*
+函数声明链表，其实可以直接用Stack_代替。。
+*/
+struct FuncDeclarationStack_ {
+    int stackDepth;//可以用来记录栈的大小
+    pTableItem item;
+};
+
 typedef enum _errorType {
     UNDEF_VAR = 1,         // Undefined Variable
     UNDEF_FUNC,            // Undefined Function
@@ -125,7 +134,9 @@ typedef enum _errorType {
     NONEXISTFIELD,         // Non-existentfield
     REDEF_FEILD,           // Redefined field
     DUPLICATED_NAME,       // Duplicated name
-    UNDEF_STRUCT           // Undefined structure
+    UNDEF_STRUCT,          // Undefined structure
+    DCLARE_BUTUNDEF_FUNC,            // Undefined function
+    DCLARE_FUNC_INCONSISTENT,       //Inconsistent declaration of function
 } ErrorType;
 
 unsigned int hash_pjw(char *name);
@@ -138,6 +149,7 @@ void freeStack(pStack stack);
 pSymbolTable initSymbolTable();
 void printSymbolTable(pSymbolTable table);
 pTableItem getSymbolTableItem(pSymbolTable table, char *name);
+bool checkTableItemConflict(pSymbolTable table, pTableItem item);
 void freeSymbolTable(pSymbolTable symbolTable);
 pTableItem newTableItem(int depth,pFieldList feildList);
 void freeTableItem(pTableItem tableItem);

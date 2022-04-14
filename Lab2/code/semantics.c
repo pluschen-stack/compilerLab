@@ -2,6 +2,7 @@
 #include "util.h"
 
 pSymbolTable symbolTable;
+pFuncDecStack funcDeckStack;
 
 /**
  * @brief 来自P.J.Weinberger提供的hash函数
@@ -72,7 +73,10 @@ inline void pError(ErrorType type, int lineNumber, char *name)
         sprintf(msg, "Duplicated name \"%s\".", name);
     else if (type == UNDEF_STRUCT)
         sprintf(msg, "Undefined structure \"%s\".", name);
-        
+    else if(type == DCLARE_BUTUNDEF_FUNC)
+        sprintf(msg, "Undefined function \"%s\".", name);
+    else if(type == DCLARE_FUNC_INCONSISTENT)
+        sprintf(msg, "Inconsistent declaration of function \"%s\".", name);
     else
         printf("Unknown type\n");
     printf("Error type %d at Line %d: %s\n", type, lineNumber, msg);
@@ -593,7 +597,9 @@ bool checkTableItemConflict(pSymbolTable table, pTableItem item)
                 item->field->type->kind == STRUCTURE)
                 return true;
             if (temp->symbolDepth == table->stack->stackDepth)
+            {
                 return true;
+            }
         }
         temp = temp->nextHash;
     }
@@ -646,6 +652,7 @@ void ExtDef(pNode currentNode)
     ExtDef:             Specifier ExtDecList SEMI
         |               Specifier SEMI
         |               Specifier FunDec CompSt
+        |               Specifier FunDec SEMI
     */
     assert(currentNode != NULL);
     pNode secondChild = currentNode->child->brother;
@@ -657,9 +664,18 @@ void ExtDef(pNode currentNode)
     else if (!strcmp(secondChild->name, "FunDec"))
     {
         FunDec(secondChild, type);
-        
-        CompSt(secondChild->brother, type);
-        
+        if (!strcmp(secondChild->brother->name, "CompSt"))
+        {
+            //只有函数定义的时候才需要进来
+            CompSt(secondChild->brother, type);
+        }
+        else
+        {
+            //需要将FunDec中添加的深度为1的栈清除
+            STACK_INC_DEPTH(symbolTable->stack);
+            clearHeadLayerStack(symbolTable);
+            STACK_DEC_DEPTH(symbolTable->stack);
+        }
     }
 }
 
@@ -1022,15 +1038,70 @@ void FunDec(pNode currentNode, pType type)
     assert(currentNode != NULL);
     pNode child = currentNode->child;
     pTableItem tableItem = newTableItem(symbolTable->stack->stackDepth, newFieldList(child->value,
-                                                                                     newType(FUNCTION, 0, NULL, type)));
+                                                                                     newType(FUNCTION, 0, NULL, copyType(type))));
     if (!strcmp(child->brother->brother->name, "VarList"))
     {
         unsigned argc = 0;
         tableItem->field->type->u.function.argv = VarList(child->brother->brother, &argc);
         tableItem->field->type->u.function.argc = argc;
     }
-
-    if (checkTableItemConflict(symbolTable, tableItem))
+    //是声明语句
+    if (!strcmp(currentNode->brother->name, "SEMI"))
+    {
+        pTableItem temp = funcDeckStack->item;
+        while (temp)
+        {
+            //检查是否有相同的函数声明
+            if (!strcmp(temp->field->name, tableItem->field->name))
+            {
+                break;
+            }
+            temp = temp->nextSymbol;
+        }
+        if (temp)
+        {
+            //有相同的函数声明,检查它的参数是否一致,如果不一致就报错
+            //使用双指针查找一致性
+            pFieldList p1 = temp->field;
+            pFieldList p2 = tableItem->field;
+            // 首先检查返回值
+            if(!checkType(p1->type->u.function.returnType,p2->type->u.function.returnType)){
+                pError(DCLARE_FUNC_INCONSISTENT,currentNode->lineno,temp->field->name);
+                freeTableItem(tableItem);
+                tableItem = NULL;
+                return;
+            }
+            // 接着比较参数
+            p1 = p1->type->u.function.argv;
+            p2 = p2->type->u.function.argv;
+            while(p1 && p2){
+                //名字不相同或者类型不相同就说明有问题
+                if(!checkType(p1->type,p2->type)||strcmp(p1->name,p2->name)){
+                    pError(DCLARE_FUNC_INCONSISTENT,currentNode->lineno,temp->field->name);
+                    break;
+                }
+                p1 = p1->tail;
+                p2 = p2->tail;
+            }
+            //参数数量不一致
+            if(p1 && !p2){
+                pError(DCLARE_FUNC_INCONSISTENT,currentNode->lineno,temp->field->name);
+            }else if(!p1 && p2){
+                pError(DCLARE_FUNC_INCONSISTENT,currentNode->lineno,temp->field->name);
+            }
+            freeTableItem(tableItem);
+            tableItem = NULL;
+            return;
+        }
+        else
+        {
+            STACK_INC_DEPTH(funcDeckStack);
+            tableItem->nextSymbol = funcDeckStack->item;
+            funcDeckStack->item = tableItem;
+        }
+    }
+    //函数定义语句
+    else if (checkTableItemConflict(symbolTable, tableItem))
     {
         pError(REDEF_FUNC, currentNode->lineno, tableItem->field->name);
         freeTableItem(tableItem);
@@ -1038,6 +1109,51 @@ void FunDec(pNode currentNode, pType type)
     }
     else
     {
+        pTableItem temp = funcDeckStack->item;
+        while (temp)
+        {
+            //检查是否有相同的函数声明
+            if (!strcmp(temp->field->name, tableItem->field->name))
+            {
+                break;
+            }
+            temp = temp->nextSymbol;
+        }
+        if (temp)
+        {
+            //有相同的函数声明,检查它的参数是否一致,如果不一致就报错
+            //使用双指针查找一致性
+            pFieldList p1 = temp->field;
+            pFieldList p2 = tableItem->field;
+            // 首先检查返回值
+            if(!checkType(p1->type->u.function.returnType,p2->type->u.function.returnType)){
+                pError(DCLARE_FUNC_INCONSISTENT,currentNode->lineno,temp->field->name);
+                freeTableItem(tableItem);
+                tableItem = NULL;
+                return;
+            }
+            
+            // 接着比较参数
+            p1 = p1->type->u.function.argv;
+            p2 = p2->type->u.function.argv;
+            while(p1 && p2){
+                //名字不相同或者类型不相同就说明有问题
+                if(!checkType(p1->type,p2->type)||strcmp(p1->name,p2->name)){
+                    pError(DCLARE_FUNC_INCONSISTENT,currentNode->lineno,temp->field->name);
+                    break;
+                }
+                p1 = p1->tail;
+                p2 = p2->tail;
+                
+            }
+            //参数数量不一致
+            if(p1 && !p2){
+                pError(DCLARE_FUNC_INCONSISTENT,currentNode->lineno,temp->field->name);
+            }else if(!p1 && p2){
+                pError(DCLARE_FUNC_INCONSISTENT,currentNode->lineno,temp->field->name);
+            }
+        }
+        //不管是不是不一致，定义都加入符号表。
         insertTableItem(symbolTable, tableItem);
     }
 }
@@ -1270,7 +1386,7 @@ pType Exp(pNode currentNode)
                     !strcmp(lchild->name, "INT"))
                 {
                     //报错，左值
-                    pError(LEFT_VAR_ASSIGN, child->lineno,NULL);
+                    pError(LEFT_VAR_ASSIGN, child->lineno, NULL);
                 }
                 else if (!strcmp(lchild->name, "ID") ||
                          !strcmp(lchild->brother->name, "LB") ||
@@ -1398,10 +1514,11 @@ pType Exp(pNode currentNode)
                         returnType = copyType(structfield->type);
                     }
                 }
-                if (p1){
+                if (p1)
+                {
                     freeType(p1);
                 }
-                    
+
                 return returnType;
             }
         }

@@ -7,10 +7,10 @@ extern pSymbolTable symbolTable;
 extern int yylineno;
 extern int yyparse();
 extern void yyrestart(FILE *);
+extern pFuncDecStack funcDeckStack;
 
 bool lexerror = false;
 bool syntaxerror = false;
-
 
 /**
  * @brief 启动程序
@@ -39,12 +39,33 @@ int main(int argc, char **argv)
     if (!lexerror && !syntaxerror)
     {
         // printSyntaxTree(root, 0);
-        symbolTable= initSymbolTable();
-        
+        symbolTable = initSymbolTable();
+        funcDeckStack = malloc(sizeof(struct FuncDeclarationStack_));
+        assert(funcDeckStack != NULL);
+        funcDeckStack->stackDepth = 0;
+        funcDeckStack->item = NULL;
         startSemanticAnalysis(root);
+        //分析完后现在检查是否有声明了但是没有被定义的函数
+
         freeSymbolTable(symbolTable);
-        
     }
     freeNode(root);
     return 0;
+}
+
+/**
+ * @brief 检查是否有函数声明了但是没有定义
+ *
+ */
+void checkFucDeclare()
+{
+    pTableItem temp = funcDeckStack->item;
+    while(temp){
+        if(checkTableItemConflict(symbolTable,temp)){
+            
+        }
+    }
+    
+    
+
 }

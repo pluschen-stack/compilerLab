@@ -77,6 +77,7 @@ ExtDefList:         ExtDef ExtDefList                       { $$ = newSyntaxNode
 ExtDef:             Specifier ExtDecList SEMI               { $$ = newSyntaxNode(@$.first_line, NON_TERMINAL, "ExtDef", 3, $1, $2, $3); }
     |               Specifier SEMI                          { $$ = newSyntaxNode(@$.first_line, NON_TERMINAL, "ExtDef", 2, $1, $2); }
     |               Specifier FunDec CompSt                 { $$ = newSyntaxNode(@$.first_line, NON_TERMINAL, "ExtDef", 3, $1, $2, $3); }
+    |               Specifier FunDec SEMI                   { $$ = newSyntaxNode(@$.first_line, NON_TERMINAL, "ExtDef", 3, $1, $2, $3);}
     |               error SEMI                              { syntaxerror = true; }
     ; 
 ExtDecList:         VarDec                                  { $$ = newSyntaxNode(@$.first_line, NON_TERMINAL, "ExtDecList", 1, $1); }
