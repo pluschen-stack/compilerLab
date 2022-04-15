@@ -133,7 +133,7 @@ multilinecomment "/*"[/]*([^*/][/]*|[*][^*/]*)*"*/"
 ~/compilerLab/Lab1/code$ make
 ```
 
-编译后，测试样例文的命令件如下
+编译后，测试样例的命令件如下
 
 ```bash
 ~/compilerLab/Lab1/code$ make test
