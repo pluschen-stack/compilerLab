@@ -767,7 +767,7 @@ pType StructSpecifier(pNode currentNode)
         else
         {
             char msg[30] = "\0";
-            sprintf(msg, "unamedStruct%d", symbolTable->unamedStructNum++);
+            sprintf(msg, "%d", symbolTable->unamedStructNum++);
             SET_FEILDLIST_NAME(structureItem->field, msg);
             child = child->brother;
         }
