@@ -11,6 +11,21 @@ extern pFuncDecStack funcDeckStack;
 
 bool lexerror = false;
 bool syntaxerror = false;
+/**
+ * @brief 检查是否有函数声明了但是没有定义
+ *
+ */
+void checkFucDeclare()
+{
+    pTableItem temp = funcDeckStack->item;
+    while(temp){
+        if(!checkTableItemConflict(symbolTable,temp)){
+            pError(DCLARE_BUTUNDEF_FUNC,temp->symbolDepth,temp->field->name);
+        }
+        temp = temp->nextSymbol;
+    }
+
+}
 
 /**
  * @brief 启动程序
@@ -46,26 +61,10 @@ int main(int argc, char **argv)
         funcDeckStack->item = NULL;
         startSemanticAnalysis(root);
         //分析完后现在检查是否有声明了但是没有被定义的函数
-
+        checkFucDeclare();
         freeSymbolTable(symbolTable);
     }
     freeNode(root);
     return 0;
 }
 
-/**
- * @brief 检查是否有函数声明了但是没有定义
- *
- */
-void checkFucDeclare()
-{
-    pTableItem temp = funcDeckStack->item;
-    while(temp){
-        if(checkTableItemConflict(symbolTable,temp)){
-            
-        }
-    }
-    
-    
-
-}
