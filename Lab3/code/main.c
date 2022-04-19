@@ -9,8 +9,37 @@ extern int yyparse();
 extern void yyrestart(FILE *);
 extern pFuncDecStack funcDeckStack;
 
+
 bool lexerror = false;
 bool syntaxerror = false;
+/**
+ * @brief 检查是否有函数声明了但是没有定义
+ *
+ */
+void checkFucDeclare()
+{
+    pTableItem temp = funcDeckStack->item;
+    while(temp){
+        if(!checkTableItemConflict(symbolTable,temp)){
+            pError(DCLARE_BUTUNDEF_FUNC,temp->symbolDepth,temp->field->name);
+        }
+        temp = temp->nextSymbol;
+    }
+}
+
+/**
+ * @brief 将READ和WRITE函数加入到符号表中
+ * 
+ */
+void addReadAndWrite()
+{
+    // FILE *readAndWrite = fopen("readandwrite.c","r");
+    // if(!readAndWrite){
+    //     perror("readandwrite.c");
+    //     return 1;
+    // }
+    //再说吧，先不使用
+}
 
 /**
  * @brief 启动程序
@@ -46,6 +75,8 @@ int main(int argc, char **argv)
         funcDeckStack->item = NULL;
         startSemanticAnalysis(root);
         //分析完后现在检查是否有声明了但是没有被定义的函数
+        checkFucDeclare();
+        
 
         freeSymbolTable(symbolTable);
     }
@@ -53,19 +84,3 @@ int main(int argc, char **argv)
     return 0;
 }
 
-/**
- * @brief 检查是否有函数声明了但是没有定义
- *
- */
-void checkFucDeclare()
-{
-    pTableItem temp = funcDeckStack->item;
-    while(temp){
-        if(checkTableItemConflict(symbolTable,temp)){
-            
-        }
-    }
-    
-    
-
-}

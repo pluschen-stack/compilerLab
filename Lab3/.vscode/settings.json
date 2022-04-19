@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "test2": "cpp"
+        "test2": "cpp",
+        "limits": "c"
     }
 }
