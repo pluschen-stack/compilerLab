@@ -1,6 +1,7 @@
 #include "node.h"
 #include "syntax.tab.h"
 #include "semantics.h"
+#include "inter.h"
 
 extern pNode root;
 extern pSymbolTable symbolTable;
@@ -8,7 +9,7 @@ extern int yylineno;
 extern int yyparse();
 extern void yyrestart(FILE *);
 extern pFuncDecStack funcDeckStack;
-
+extern pInterCodesWrap interCodesWrap;
 
 bool lexerror = false;
 bool syntaxerror = false;
@@ -77,7 +78,12 @@ int main(int argc, char **argv)
         //分析完后现在检查是否有声明了但是没有被定义的函数
         checkFucDeclare();
         
+        interCodesWrap = newInterCodesWrap();
+        generateInterCodes(root);
+        
+        printInterCodes(interCodesWrap);
 
+        freeInterCodesWrap(interCodesWrap);
         freeSymbolTable(symbolTable);
     }
     freeNode(root);

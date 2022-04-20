@@ -1,9 +1,3 @@
-int func(int a);
-
-int func(int a,float c){
-    return 1;
-}
-
-int func(int a,float c){
+int func22(int a){
     return 1;
 }

@@ -2,10 +2,14 @@
 #define INTER_H
 
 #include "semantics.h"
+#include "util.h"
 
-typedef struct Operand_ *pOperand;       //运算对象
-typedef struct InterCode_ *pInterCode;   //一条中间代码
-typedef struct InterCodes_ *pInterCodes; //双向链表
+typedef struct Operand_ *pOperand;              //运算对象
+typedef struct InterCode_ *pInterCode;          //中间代码的体
+typedef struct InterCodes_ *pInterCodes;        //中间代码的头，包含了前后两条中间代码指针
+typedef struct InterCodesWrap_ *pInterCodesWrap; //中间代码序列的包装，记录了中间代码的头和尾
+
+
 
 struct Operand_
 {
@@ -15,7 +19,7 @@ struct Operand_
         OPERAND_CONSTANT, //常量
         OPERAND_VARIABLE, //变量
         OPERAND_FUNCTION, //函数
-        OPERAND_ADDRESS,//地址
+        OPERAND_ADDRESS,  //地址
         OPERAND_RELOP,
         OPERAND_LABEL
     } kind;
@@ -28,7 +32,8 @@ struct Operand_
 
 struct InterCode_
 {
-    enum {
+    enum
+    {
         IR_LABEL,
         IR_FUNCTION,
         IR_ASSIGN,
@@ -50,20 +55,26 @@ struct InterCode_
         IR_WRITE,
     } kind;
 
-    union {
-        struct {
+    union
+    {
+        struct
+        {
             pOperand op;
         } oneOp;
-        struct {
+        struct
+        {
             pOperand right, left;
         } assign;
-        struct {
+        struct
+        {
             pOperand result, op1, op2;
         } binOp;
-        struct {
+        struct
+        {
             pOperand x, relop, y, z;
         } ifGoto;
-        struct {
+        struct
+        {
             pOperand op;
             int size;
         } dec;
@@ -72,13 +83,29 @@ struct InterCode_
 
 struct InterCodes_
 {
-    pInterCode code; //中间代码
+    pInterCode code;
     pInterCodes prev, next;
+};
+
+struct InterCodesWrap_
+{
+    pInterCodes head; //第一条中间代码的头
+    pInterCodes tail; //末尾的中间代码的尾
+    int labelNum;     //符号数，可用于命名
 };
 
 pOperand newOperand(int kind, void *val);
 void updateOperand(pOperand p, int kind, void *val);
-void deleteOperand(pOperand p);
+void freeOperand(pOperand p);
+void printOperand(pOperand operand);
+
+pInterCodes newInterCodes(pInterCode interCode);
+void freeInterCodes(pInterCodes p);
+
+pInterCodesWrap newInterCodesWrap();
+void addInterCodesToWrap(pInterCodesWrap codes, pInterCodes newcode);
+void freeInterCodesWrap(pInterCodesWrap codes);
+void printInterCodes(pInterCodesWrap interCodesWrap);
 
 void generateInterCodes(pNode node);
 void translate_ExtDef(pNode node);
