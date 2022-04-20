@@ -29,20 +29,6 @@ void checkFucDeclare()
 }
 
 /**
- * @brief 将READ和WRITE函数加入到符号表中
- * 
- */
-void addReadAndWrite()
-{
-    // FILE *readAndWrite = fopen("readandwrite.c","r");
-    // if(!readAndWrite){
-    //     perror("readandwrite.c");
-    //     return 1;
-    // }
-    //再说吧，先不使用
-}
-
-/**
  * @brief 启动程序
  *
  * @param argc
@@ -70,19 +56,20 @@ int main(int argc, char **argv)
     {
         // printSyntaxTree(root, 0);
         symbolTable = initSymbolTable();
-        funcDeckStack = malloc(sizeof(struct FuncDeclarationStack_));
-        assert(funcDeckStack != NULL);
-        funcDeckStack->stackDepth = 0;
-        funcDeckStack->item = NULL;
+        // 不用考虑函数声明了因此直接注释掉
+        // funcDeckStack = malloc(sizeof(struct FuncDeclarationStack_));
+        // assert(funcDeckStack != NULL);
+        // funcDeckStack->stackDepth = 0;
+        // funcDeckStack->item = NULL;
+        
         startSemanticAnalysis(root);
-        //分析完后现在检查是否有声明了但是没有被定义的函数
-        checkFucDeclare();
+        // checkFucDeclare();
         
         interCodesWrap = newInterCodesWrap();
         generateInterCodes(root);
         
         printInterCodes(interCodesWrap);
-
+        
         freeInterCodesWrap(interCodesWrap);
         freeSymbolTable(symbolTable);
     }

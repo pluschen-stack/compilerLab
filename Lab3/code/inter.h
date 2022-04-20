@@ -4,12 +4,12 @@
 #include "semantics.h"
 #include "util.h"
 
-typedef struct Operand_ *pOperand;              //运算对象
-typedef struct InterCode_ *pInterCode;          //中间代码的体
-typedef struct InterCodes_ *pInterCodes;        //中间代码的头，包含了前后两条中间代码指针
+typedef struct Operand_ *pOperand;               //运算对象
+typedef struct InterCode_ *pInterCode;           //中间代码的体
+typedef struct InterCodes_ *pInterCodes;         //中间代码的头，包含了前后两条中间代码指针
 typedef struct InterCodesWrap_ *pInterCodesWrap; //中间代码序列的包装，记录了中间代码的头和尾
 
-
+extern pSymbolTable symbolTable;
 
 struct Operand_
 {
@@ -91,7 +91,8 @@ struct InterCodesWrap_
 {
     pInterCodes head; //第一条中间代码的头
     pInterCodes tail; //末尾的中间代码的尾
-    int labelNum;     //符号数，可用于命名
+    int labelNum;     //符号数,用于给符号命名，符号用于跳转
+    int tempVarNum;   //临时变量数，用于给临时变量命令
 };
 
 pOperand newOperand(int kind, void *val);
@@ -111,7 +112,11 @@ void generateInterCodes(pNode node);
 void translate_ExtDef(pNode node);
 void translate_FunDec(pNode node);
 void translate_CompSt(pNode node);
-
-void printInterCode();
-
+void translate_DefList(pNode node);
+void translate_Def(pNode node);
+void translate_DecList(pNode node);
+void translate_Dec(pNode node);
+void translate_VarDec(pNode node, pOperand place);
+void translate_StmtList(pNode node);
+pInterCodes translate_Cond(pNode exp,pOperand p1,pOperand p2);
 #endif

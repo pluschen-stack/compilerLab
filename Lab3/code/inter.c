@@ -1,15 +1,17 @@
 #include "inter.h"
 
-
 pInterCodesWrap interCodesWrap;
+//为了方便表达newOperand而使用。如果将newOperand改成可变参数的形式就不需要了
+const int TRUE_CONSTANT = 1;
+const int FALSE_CONSTANT = 0;
 
 /**
  * @brief 产生一个运算对象
  *
  * @param kind 什么类型的运算分量
- * @param val 运算分量可能是char *也可能是int，但都只有一个，因此使用void*
+ * @param value 运算分量可能是char *也可能是int，但都只有一个，因此使用void*
  */
-pOperand newOperand(int kind, void *val)
+pOperand newOperand(int kind, void *value)
 {
     //突发奇想可以用宏来解决内存申请
     //比如glibc里面就有__malloc_hook
@@ -24,20 +26,20 @@ pOperand newOperand(int kind, void *val)
     switch (kind)
     {
     case OPERAND_CONSTANT:
-        p->u.value = *((int *)val);
+        p->u.value = *((int *)value);
         break;
     case OPERAND_VARIABLE:
     case OPERAND_FUNCTION:
     case OPERAND_ADDRESS:
     case OPERAND_RELOP:
     case OPERAND_LABEL:
-        p->u.name = (char *)val;
+        p->u.name = (char *)value;
         break;
     }
     return p;
 }
 
-void updateOperand(pOperand p, int kind, void *val)
+void updateOperand(pOperand p, int kind, void *value)
 {
     assert(p != NULL);
     assert(kind >= 0 && kind < 6);
@@ -45,7 +47,7 @@ void updateOperand(pOperand p, int kind, void *val)
     switch (kind)
     {
     case OPERAND_CONSTANT:
-        p->u.value = *((int *)val);
+        p->u.value = *((int *)value);
         break;
     case OPERAND_VARIABLE:
     case OPERAND_FUNCTION:
@@ -53,7 +55,7 @@ void updateOperand(pOperand p, int kind, void *val)
     case OPERAND_RELOP:
     case OPERAND_LABEL:
         FREE(p->u.name);
-        p->u.name = (char *)val;
+        p->u.name = (char *)value;
         break;
     }
 }
@@ -100,12 +102,38 @@ pInterCode newInterCode(int kind, int argc, ...)
     switch (kind)
     {
     // TODO 还需要继续产生其他类型的中间结构体
+    case IR_LABEL:
     case IR_FUNCTION:
+    case IR_GOTO:
+    case IR_RETURN:
+    case IR_ARG:
+    case IR_PARAM:
+    case IR_READ:
+    case IR_WRITE:
         p->u.oneOp.op = va_arg(vaList, pOperand);
         break;
-    case IR_ARG:
+    case IR_ASSIGN:
+    case IR_GET_ADDR:
+    case IR_READ_ADDR:
+    case IR_WRITE_ADDR:
+    case IR_CALL:
+        p->u.assign.left = va_arg(vaList, pOperand);
+        p->u.assign.right = va_arg(vaList, pOperand);
+        break;
+    case IR_ADD:
+    case IR_SUB:
+    case IR_MUL:
+    case IR_DIV:
+        p->u.binOp.result = va_arg(vaList, pOperand);
+        p->u.binOp.op1 = va_arg(vaList, pOperand);
+        p->u.binOp.op2 = va_arg(vaList, pOperand);
+        break;
 
-    default:
+    case IR_DEC:
+        p->u.dec.op = va_arg(vaList, pOperand);
+        p->u.dec.size = va_arg(vaList, int);
+        break;
+    case IR_IF_GOTO:
 
         break;
     }
@@ -224,159 +252,205 @@ void addInterCodesToWrap(pInterCodesWrap codes, pInterCodes newcode)
 
 /**
  * @brief 清除中间代码结构包装
- * 
+ *
  * @param codes 中间代码结构包装
  */
 void freeInterCodesWrap(pInterCodesWrap codes)
 {
     assert(codes != NULL);
     pInterCodes tobeFreed = codes->head;
-    while(tobeFreed!=NULL){
+    while (tobeFreed != NULL)
+    {
         pInterCodes temp = tobeFreed;
-        tobeFreed= tobeFreed->next;
+        tobeFreed = tobeFreed->next;
         freeInterCodes(temp);
     }
-    codes->head =NULL;
-    codes->tail =NULL;
+    codes->head = NULL;
+    codes->tail = NULL;
     free(codes);
+}
+
+pOperand newTemp(pInterCodesWrap interCodesWrap)
+{
+    char tName[10] = {0};
+    sprintf(tName, "t%d", interCodesWrap->tempVarNum);
+    interCodesWrap->tempVarNum++;
+    pOperand temp = newOperand(OPERAND_VARIABLE, newString(tName));
+    return temp;
+}
+
+pOperand newLabel(pInterCodesWrap interCodesWrap)
+{
+    char lName[10] = {0};
+    sprintf(lName, "label%d", interCodesWrap->labelNum);
+    interCodesWrap->labelNum++;
+    pOperand temp = newOperand(OPERAND_LABEL, newString(lName));
+    return temp;
 }
 
 /**
  * @brief 打印运算分量到终端
- * 
+ *
  * @param operand 运算分量
  */
-void printOperand(pOperand operand){
+void printOperand(pOperand operand)
+{
     assert(operand != NULL);
-    switch (operand->kind) {
-        case OPERAND_CONSTANT:
-            printf("#%d", operand->u.value);
-            break;
-        case OPERAND_VARIABLE:
-        case OPERAND_FUNCTION:
-        case OPERAND_ADDRESS:
-        case OPERAND_RELOP:
-        case OPERAND_LABEL:
-            printf("%s", operand->u.name);
-            break;
+    switch (operand->kind)
+    {
+    case OPERAND_CONSTANT:
+        printf("#%d", operand->u.value);
+        break;
+    case OPERAND_VARIABLE:
+    case OPERAND_FUNCTION:
+    case OPERAND_ADDRESS:
+    case OPERAND_RELOP:
+    case OPERAND_LABEL:
+        printf("%s", operand->u.name);
+        break;
     }
+}
+
+unsigned int getSize(pType type)
+{
+    if (type == NULL)
+        return 0;
+    else if (type->kind == BASIC)
+        return 4;
+    else if (type->kind == ARRAY)
+        return type->u.array.size * getSize(type->u.array.elem);
+    else if (type->kind == STRUCTURE)
+    {
+        int size = 0;
+        pFieldList temp = type->u.structure.structureField;
+        while (temp)
+        {
+            size += getSize(temp->type);
+            temp = temp->tail;
+        }
+        return size;
+    }
+    return 0;
 }
 
 /**
  * @brief 打印中间代码到终端，如果需要打印到文件，可以妥善利用linux的>
- * 
+ *
  * @param interCodesWrap 中间代码结构包装
  */
-void printInterCodes(pInterCodesWrap interCodesWrap) {
-    for (pInterCodes cur = interCodesWrap->head; cur != NULL; cur = cur->next) {
+void printInterCodes(pInterCodesWrap interCodesWrap)
+{
+    for (pInterCodes cur = interCodesWrap->head; cur != NULL; cur = cur->next)
+    {
         assert(cur->code->kind >= 0 && cur->code->kind < 19);
-        switch (cur->code->kind) {
-            case IR_LABEL:
-                printf("LABEL ");
-                printOperand(cur->code->u.oneOp.op);
-                printf(" :");
-                break;
-            case IR_FUNCTION:
-                printf("FUNCTION ");
-                printOperand(cur->code->u.oneOp.op);
-                printf(" :");
-                break;
-            case IR_ASSIGN:
-                printOperand(cur->code->u.assign.left);
-                printf(" := ");
-                printOperand(cur->code->u.assign.right);
-                break;
-            case IR_ADD:
-                printOperand(cur->code->u.binOp.result);
-                printf(" := ");
-                printOperand(cur->code->u.binOp.op1);
-                printf(" + ");
-                printOperand(cur->code->u.binOp.op2);
-                break;
-            case IR_SUB:
-                printOperand(cur->code->u.binOp.result);
-                printf(" := ");
-                printOperand(cur->code->u.binOp.op1);
-                printf(" - ");
-                printOperand(cur->code->u.binOp.op2);
-                break;
-            case IR_MUL:
-                printOperand(cur->code->u.binOp.result);
-                printf(" := ");
-                printOperand(cur->code->u.binOp.op1);
-                printf(" * ");
-                printOperand(cur->code->u.binOp.op2);
-                break;
-            case IR_DIV:
-                printOperand(cur->code->u.binOp.result);
-                printf(" := ");
-                printOperand(cur->code->u.binOp.op1);
-                printf(" / ");
-                printOperand(cur->code->u.binOp.op2);
-                break;
-            case IR_GET_ADDR:
-                printOperand(cur->code->u.assign.left);
-                printf(" := &");
-                printOperand(cur->code->u.assign.right);
-                break;
-            case IR_READ_ADDR:
-                printOperand(cur->code->u.assign.left);
-                printf(" := *");
-                printOperand(cur->code->u.assign.right);
-                break;
-            case IR_WRITE_ADDR:
-                printf("*");
-                printOperand(cur->code->u.assign.left);
-                printf(" := ");
-                printOperand(cur->code->u.assign.right);
-                break;
-            case IR_GOTO:
-                printf("GOTO ");
-                printOperand(cur->code->u.oneOp.op);
-                break;
-            case IR_IF_GOTO:
-                printf("IF ");
-                printOperand(cur->code->u.ifGoto.x);
-                printf(" ");
-                printOperand(cur->code->u.ifGoto.relop);
-                printf(" ");
-                printOperand(cur->code->u.ifGoto.y);
-                printf(" GOTO ");
-                printOperand(cur->code->u.ifGoto.z);
-                break;
-            case IR_RETURN:
-                printf("RETURN ");
-                printOperand(cur->code->u.oneOp.op);
-                break;
-            case IR_DEC:
-                printf("DEC ");
-                printOperand(cur->code->u.dec.op);
-                printf(" ");
-                printf("%d", cur->code->u.dec.size);
-                break;
-            case IR_ARG:
-                printf("ARG ");
-                printOperand(cur->code->u.oneOp.op);
-                break;
-            case IR_CALL:
-                printOperand(cur->code->u.assign.left);
-                printf(" := CALL ");
-                printOperand(cur->code->u.assign.right);
-                break;
-            case IR_PARAM:
-                printf("PARAM ");
-                printOperand(cur->code->u.oneOp.op);
-                break;
-            case IR_READ:
-                printf("READ ");
-                printOperand(cur->code->u.oneOp.op);
-                break;
-            case IR_WRITE:
-                printf("WRITE ");
-                printOperand(cur->code->u.oneOp.op);
-                break;
-            printf("\n");
+        switch (cur->code->kind)
+        {
+        case IR_LABEL:
+            printf("LABEL ");
+            printOperand(cur->code->u.oneOp.op);
+            printf(" :");
+            break;
+        case IR_FUNCTION:
+            printf("FUNCTION ");
+            printOperand(cur->code->u.oneOp.op);
+            printf(" :");
+            break;
+        case IR_ASSIGN:
+            printOperand(cur->code->u.assign.left);
+            printf(" := ");
+            printOperand(cur->code->u.assign.right);
+            break;
+        case IR_ADD:
+            printOperand(cur->code->u.binOp.result);
+            printf(" := ");
+            printOperand(cur->code->u.binOp.op1);
+            printf(" + ");
+            printOperand(cur->code->u.binOp.op2);
+            break;
+        case IR_SUB:
+            printOperand(cur->code->u.binOp.result);
+            printf(" := ");
+            printOperand(cur->code->u.binOp.op1);
+            printf(" - ");
+            printOperand(cur->code->u.binOp.op2);
+            break;
+        case IR_MUL:
+            printOperand(cur->code->u.binOp.result);
+            printf(" := ");
+            printOperand(cur->code->u.binOp.op1);
+            printf(" * ");
+            printOperand(cur->code->u.binOp.op2);
+            break;
+        case IR_DIV:
+            printOperand(cur->code->u.binOp.result);
+            printf(" := ");
+            printOperand(cur->code->u.binOp.op1);
+            printf(" / ");
+            printOperand(cur->code->u.binOp.op2);
+            break;
+        case IR_GET_ADDR:
+            printOperand(cur->code->u.assign.left);
+            printf(" := &");
+            printOperand(cur->code->u.assign.right);
+            break;
+        case IR_READ_ADDR:
+            printOperand(cur->code->u.assign.left);
+            printf(" := *");
+            printOperand(cur->code->u.assign.right);
+            break;
+        case IR_WRITE_ADDR:
+            printf("*");
+            printOperand(cur->code->u.assign.left);
+            printf(" := ");
+            printOperand(cur->code->u.assign.right);
+            break;
+        case IR_GOTO:
+            printf("GOTO ");
+            printOperand(cur->code->u.oneOp.op);
+            break;
+        case IR_IF_GOTO:
+            printf("IF ");
+            printOperand(cur->code->u.ifGoto.x);
+            printf(" ");
+            printOperand(cur->code->u.ifGoto.relop);
+            printf(" ");
+            printOperand(cur->code->u.ifGoto.y);
+            printf(" GOTO ");
+            printOperand(cur->code->u.ifGoto.z);
+            break;
+        case IR_RETURN:
+            printf("RETURN ");
+            printOperand(cur->code->u.oneOp.op);
+            break;
+        case IR_DEC:
+            printf("DEC ");
+            printOperand(cur->code->u.dec.op);
+            printf(" ");
+            printf("%d", cur->code->u.dec.size);
+            break;
+        case IR_ARG:
+            printf("ARG ");
+            printOperand(cur->code->u.oneOp.op);
+            break;
+        case IR_CALL:
+            printOperand(cur->code->u.assign.left);
+            printf(" := CALL ");
+            printOperand(cur->code->u.assign.right);
+            break;
+        case IR_PARAM:
+            printf("PARAM ");
+            printOperand(cur->code->u.oneOp.op);
+            break;
+        case IR_READ:
+            printf("READ ");
+            printOperand(cur->code->u.oneOp.op);
+            break;
+        case IR_WRITE:
+            printf("WRITE ");
+            printOperand(cur->code->u.oneOp.op);
+            break;
         }
+        printf("\n");
     }
 }
 
@@ -407,7 +481,7 @@ void translate_ExtDef(pNode node)
     //无函数声明，全局变量定义，结构体
     if (!strcmp(secondChild->name, "FunDec"))
     {
-        
+
         translate_FunDec(secondChild);
         translate_CompSt(secondChild->brother);
     }
@@ -422,13 +496,550 @@ void translate_FunDec(pNode node)
         |               error RP
     */
     pNode child = node->child;
-    pInterCodes newCode = newInterCodes(newInterCode(IR_FUNCTION, 1, 
-        newOperand(OPERAND_FUNCTION, newString(child->value))));
-    addInterCodesToWrap(interCodesWrap,newCode);
-
+    pInterCodes newCode = newInterCodes(newInterCode(IR_FUNCTION, 1,
+                                                     newOperand(OPERAND_FUNCTION, newString(child->value))));
+    addInterCodesToWrap(interCodesWrap, newCode);
+    pTableItem tableItem = getSymbolTableItem(symbolTable, child->value);
+    pFieldList argv = tableItem->field->type->u.function.argv;
+    while (argv)
+    {
+        newCode = newInterCodes(newInterCode(IR_PARAM, 1,
+                                             newOperand(OPERAND_VARIABLE, newString(argv->name))));
+        addInterCodesToWrap(interCodesWrap, newCode);
+        argv = argv->tail;
+    }
 }
 
 void translate_CompSt(pNode node)
 {
     assert(node != NULL);
+    /*
+    CompSt:             LC DefList StmtList RC
+        |               error RC
+    */
+    pNode secondChild = node->child->brother;
+    if (!strcmp(secondChild->name, "DefList"))
+    {
+        translate_DefList(secondChild);
+    }
+    if (!strcmp(secondChild->brother->name, "StmtList"))
+    {
+        translate_StmtList(secondChild->brother);
+    }
+}
+
+void translate_DefList(pNode node)
+{
+    assert(node != NULL);
+    /*
+    DefList:            Def DefList
+        |
+    */
+    pNode child = node->child;
+    while (child)
+    {
+        translate_Def(child);
+        child = child->brother;
+    }
+}
+
+void translate_Def(pNode node)
+{
+    assert(node != NULL);
+    /*
+    Def:                Specifier DecList SEMI
+        ;
+    */
+    pNode child = node->child;
+    //直接分析DecList，不用担心Specifier，因为已经在语义分析中分析过了
+    if (!strcmp(child->brother->name, "DecList"))
+    {
+        translate_DecList(node);
+    }
+}
+
+void translate_DecList(pNode node)
+{
+    assert(node != NULL);
+    /*
+    DecList:            Dec
+        |               Dec COMMA DecList
+        ;
+    */
+    pNode child = node->child;
+    while (child)
+    {
+        translate_Dec(child);
+        if (child->brother)
+            child = child->brother->brother;
+        else
+            child = NULL;
+    }
+}
+
+void translate_Dec(pNode node)
+{
+    assert(node != NULL);
+    /*
+    Dec:                VarDec
+        |               VarDec ASSIGNOP Exp
+        ;
+    */
+    pNode child = node->child;
+    // VarDec ASSIGNOP Exp
+    if (child->brother)
+    {
+        pOperand t1 = newTemp(interCodesWrap);
+        translate_VarDec(child->brother, t1);
+        pOperand t2 = newTemp(interCodesWrap);
+        translate_Exp(child->brother->brother, t2);
+        //只用考虑简单变量的复制
+        newInterCode(IR_ASSIGN, 2, t1, t2);
+    }
+    // VarDec
+    else
+    {
+        translate_VarDec(node, NULL);
+    }
+}
+
+void translate_VarDec(pNode node, pOperand place)
+{
+    assert(node != NULL);
+    /*
+    VarDec:             ID
+        |               VarDec LB INT RB
+        |               error RB
+        ;
+    */
+    // VarDec -> ID
+    if (!strcmp(node->child->name, "ID"))
+    {
+        pTableItem temp = getSymbolTableItem(symbolTable, node->child->value);
+        pType type = temp->field->type;
+        if (type->kind == BASIC)
+        {
+            if (place)
+            {
+                interCodesWrap->tempVarNum--;
+                updateOperand(place, OPERAND_VARIABLE,
+                              newString(temp->field->name));
+            }
+            //如果只是简单的变量声明语句不用特地的打印中间代码
+        }
+        else if (type->kind == ARRAY)
+        {
+            // TODO 如果需要完成高维数组就还需要继续修改
+            pInterCodes p = newInterCodes(newInterCode(
+                IR_DEC,
+                2,
+                newOperand(OPERAND_VARIABLE, newString(temp->field->name)),
+                getSize(type)));
+            addInterCodesToWrap(interCodesWrap, p);
+        }
+        else if (type->kind == STRUCTURE)
+        {
+            // 3.1选做
+            pInterCodes p = newInterCodes(newInterCode(
+                IR_DEC,
+                2,
+                newOperand(OPERAND_VARIABLE, newString(temp->field->name)),
+                getSize(type)));
+            addInterCodesToWrap(interCodesWrap, p);
+        }
+    }
+    // VarDec -> VarDec LB INT RB
+    else
+    {
+        translate_VarDec(node->child, place);
+    }
+}
+
+/**
+ * @brief 表达式的翻译，本来应该有返回值的，不过Unabletocode没写，因此这个函数有很多副作用，我正在慢慢修改
+ *
+ * @param exp
+ * @param place
+ */
+void translate_Exp(pNode exp, pOperand place)
+{
+    assert(exp != NULL);
+    // Exp -> Exp ASSIGNOP Exp
+    //      | Exp AND Exp
+    //      | Exp OR Exp
+    //      | Exp RELOP Exp
+    //      | Exp PLUS Exp
+    //      | Exp MINUS Exp
+    //      | Exp STAR Exp
+    //      | Exp DIV Exp
+
+    //      | MINUS Exp
+    //      | NOT Exp
+    //      | ID LP Args RP
+    //      | ID LP RP
+    //      | Exp LB Exp RB
+    //      | Exp DOT ID
+    //      | ID
+    //      | INT
+    //      | FLOAT
+
+    // Exp -> LP Exp RP
+    pNode child = exp->child;
+    if (!strcmp(child->name, "LP"))
+        translate_Exp(child->brother, place);
+
+    else if (!strcmp(child->name, "Exp") ||
+             !strcmp(child->name, "NOT"))
+    {
+        // 条件表达式 和 基本表达式
+        if (strcmp(child->brother->name, "LB") &&
+            strcmp(child->brother->name, "DOT"))
+        {
+            // Exp -> Exp AND Exp
+            //      | Exp OR Exp
+            //      | Exp RELOP Exp
+            //      | NOT Exp
+            //条件表达式
+            /*
+            方便理解的翻译例子：
+            n = a > b;
+            得到的中间代码：
+            t3 := #0
+            IF a > b GOTO label1
+            GOTO label2
+            LABEL label1 :
+            t3 := #1
+            LABEL label2 :
+            n := t3
+            */
+            if (!strcmp(child->brother->name, "AND") ||
+                !strcmp(child->brother->name, "OR") ||
+                !strcmp(child->brother->name, "RELOP") ||
+                !strcmp(child->name, "NOT"))
+            {
+                pOperand label1 = newLabel(interCodesWrap);
+                pOperand label2 = newLabel(interCodesWrap);
+                pOperand true_num = newOperand(OPERAND_CONSTANT, &TRUE_CONSTANT);
+                pOperand false_num = newOperand(OPERAND_CONSTANT, &FALSE_CONSTANT);
+                pInterCodes code0 = newInterCodes(newInterCode(IR_ASSIGN, 2, place, false_num));
+                addInterCodesToWrap(interCodesWrap, code0);
+                pInterCodes code1 = translate_Cond(exp, label1, label2);
+                addInterCodesToWrap(interCodesWrap, code1);
+                pInterCodes code2 = newInterCodes(newInterCode(IR_LABEL, 1, label1));
+                addInterCodesToWrap(interCodesWrap, code2);
+                pInterCodes code3 = newInterCodes(newInterCode(IR_ASSIGN, 2, place, true_num));
+                addInterCodesToWrap(interCodesWrap, code3);
+                pInterCodes code4 = newInterCodes(newInterCode(IR_LABEL, 1, label2));
+                addInterCodesToWrap(interCodesWrap, code4);
+            }
+            else
+            {
+                // Exp -> Exp ASSIGNOP Exp
+                if (!strcmp(child->brother->name, "ASSIGNOP"))
+                {
+                    //寻找左边的变量，因为可能为ID或者结构体赋值
+                    pOperand t1 = newTemp(interCodesWrap);
+                    translate_Exp(child, t1);
+                    pOperand t2 = newTemp(interCodesWrap);
+                    translate_Exp(child->brother->brother, t2);
+                    pInterCodes code1 = newInterCodes(newInterCode(IR_ASSIGN, 2, t1, t2));
+                    addInterCodesToWrap(interCodesWrap, code1);
+                    pInterCodes code2 = newInterCodes(newInterCode(IR_ASSIGN, 2, place, t1));
+                    addInterCodesToWrap(interCodesWrap, code2);
+                }
+                //      | Exp PLUS Exp
+                //      | Exp MINUS Exp
+                //      | Exp STAR Exp
+                //      | Exp DIV Exp
+                else
+                {
+                    pOperand t1 = newTemp(interCodesWrap);
+                    translate_Exp(child, t1);
+                    pOperand t2 = newTemp(interCodesWrap);
+                    translate_Exp(child->brother->brother, t2);
+                    // Exp -> Exp PLUS Exp
+                    if (!strcmp(child->brother->name, "PLUS"))
+                    {
+                        pInterCodes addCode = newInterCodes(newInterCode(IR_ASSIGN, 2, t1, t2));
+                        addInterCodesToWrap(interCodesWrap, addCode); 
+                    }
+                    // Exp -> Exp MINUS Exp
+                    else if (!strcmp(child->brother->name, "MINUS"))
+                    {
+                        pInterCodes subCode = newInterCodes(newInterCode(IR_ASSIGN, 2, t1, t2));
+                        addInterCodesToWrap(interCodesWrap, subCode); 
+                    }
+                    // Exp -> Exp STAR Exp
+                    else if (!strcmp(child->brother->name, "STAR"))
+                    {
+                        pInterCodes starCode = newInterCodes(newInterCode(IR_ASSIGN, 2, t1, t2));
+                        addInterCodesToWrap(interCodesWrap, starCode); 
+                    }
+                    // Exp -> Exp DIV Exp
+                    else if (!strcmp(child->brother->name, "DIV"))
+                    {
+                        pInterCodes divCode = newInterCodes(newInterCode(IR_ASSIGN, 2, t1, t2));
+                        addInterCodesToWrap(interCodesWrap, divCode); 
+                    }
+                }
+            }
+        }
+        // 数组和结构体访问
+        // TODO 先写到这里 
+        else
+        {
+            // Exp -> Exp LB Exp RB
+            if (!strcmp(child->brother->name, "LB"))
+            {
+                //数组
+                if (child->child->brother &&
+                    !strcmp(child->child->brother, "LB"))
+                {
+                    printf(
+                        "Cannot translate: Code containsvariables of "
+                        "multi-dimensional array type or parameters of array "
+                        "type.\n");
+                    return;
+                }
+                else
+                {
+                    pOperand idx = newTemp(interCodesWrap);
+                    translate_Exp(child->brother->brother, idx);
+                    pOperand base = newTemp();
+                    translate_Exp(child, base);
+
+                    pOperand width;
+                    pOperand offset = newTemp();
+                    pOperand target;
+                    // 根据假设，Exp1只会展开为 Exp DOT ID 或 ID
+                    // 我们让前一种情况吧ID作为name回填进place返回到这里的base处，在语义分析时将结构体变量也填进表（因为假设无重名），这样两种情况都可以查表得到。
+                    pTableItem item = getSymbolTableItem(symbolTable, base->u.name);
+                    assert(item->field->type->kind == ARRAY);
+                    width = newOperand(
+                        OPERAND_CONSTANT, getSize(item->field->type->u.array.elem));
+                    genInterCode(IR_MUL, offset, idx, width);
+                    // 如果是ID[Exp],
+                    // 则需要对ID取址，如果前面是结构体内访问，则会返回一个地址类型，不需要再取址
+                    if (base->kind == OPERAND_VARIABLE)
+                    {
+                        // printf("非结构体数组访问\n");
+                        target = newTemp();
+                        genInterCode(IR_GET_ADDR, target, base);
+                    }
+                    else
+                    {
+                        // printf("结构体数组访问\n");
+                        target = base;
+                    }
+                    genInterCode(IR_ADD, place, target, offset);
+                    place->kind = OPERAND_ADDRESS;
+                    interCodesWrap->lastArrayName = base->u.name;
+                }
+            }
+            // Exp -> Exp DOT ID
+            else
+            {
+                //结构体
+                pOperand temp = newTemp();
+                translate_Exp(child, temp);
+                // 两种情况，Exp直接为一个变量，则需要先取址，若Exp为数组或者多层结构体访问或结构体形参，则target会被填成地址，可以直接用。
+                pOperand target;
+
+                if (temp->kind == OPERAND_ADDRESS)
+                {
+                    target = newOperand(temp->kind, temp->u.name);
+                    // target->isAddr = TRUE;
+                }
+                else
+                {
+                    target = newTemp();
+                    genInterCode(IR_GET_ADDR, target, temp);
+                }
+
+                pOperand id = newOperand(
+                    OPERAND_VARIABLE, newString(child->brother->brother->value));
+                int offset = 0;
+                pTableItem item = getSymbolTableItem(symbolTable, temp->u.name);
+                //结构体数组，temp是临时变量，查不到表，需要用处理数组时候记录下的数组名老查表
+                if (item == NULL)
+                {
+                    item = getSymbolTableItem(symbolTable, interCodesWrap->lastArrayName);
+                }
+
+                pFieldList tmp;
+                // 结构体数组 eg: a[5].b
+                if (item->field->type->kind == ARRAY)
+                {
+                    tmp = item->field->type->u.array.elem->u.structure.field;
+                }
+                // 一般结构体
+                else
+                {
+                    tmp = item->field->type->u.structure.field;
+                }
+                // 遍历获得offset
+                while (tmp)
+                {
+                    if (!strcmp(tmp->name, id->u.name))
+                        break;
+                    offset += getSize(tmp->type);
+                    tmp = tmp->tail;
+                }
+
+                pOperand tOffset = newOperand(OPERAND_CONSTANT, offset);
+                if (place)
+                {
+                    genInterCode(IR_ADD, place, target, tOffset);
+                    // 为了处理结构体里的数组把id名通过place回传给上层
+                    setOperand(place, OPERAND_ADDRESS, (void *)newString(id->u.name));
+                    // place->isAddr = TRUE;
+                }
+            }
+        }
+    }
+    //单目运算符
+    // Exp -> MINUS Exp
+    else if (!strcmp(child->name, "MINUS"))
+    {
+        pOperand t1 = newTemp(interCodesWrap);
+        translate_Exp(child->brother, t1);
+        pOperand zero = newOperand(OPERAND_CONSTANT, 0);
+        addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_SUB, 3, place, zero, t1)));
+    }
+    // // Exp -> NOT Exp
+    // else if (!strcmp(child->name, "NOT")) {
+    //     pOperand label1 = newLabel();
+    //     pOperand label2 = newLabel();
+    //     pOperand true_num = newOperand(OPERAND_CONSTANT, 1);
+    //     pOperand false_num = newOperand(OPERAND_CONSTANT, 0);
+    //     genInterCode(IR_ASSIGN, place, false_num);
+    //     translateCond(exp, label1, label2);
+    //     genInterCode(IR_LABEL, label1);
+    //     genInterCode(IR_ASSIGN, place, true_num);
+    // }
+    // Exp -> ID LP Args RP
+    //		| ID LP RP
+    else if (!strcmp(child->name, "ID") && child->brother)
+    {
+        pOperand funcTemp =
+            newOperand(OPERAND_FUNCTION, newString(child->value));
+        // Exp -> ID LP Args RP
+        if (!strcmp(child->brother->brother->name, "Args"))
+        {
+            pArgList argList = newArgList();
+            translateArgs(child->brother->brother, argList);
+            if (!strcmp(child->value, "write"))
+            {
+                genInterCode(IR_WRITE, argList->head->op);
+            }
+            else
+            {
+                pArg argTemp = argList->head;
+                while (argTemp)
+                {
+                    if (argTemp->op == OPERAND_VARIABLE)
+                    {
+                        pTableItem item =
+                            getSymbolTableItem(symbolTable, argTemp->op->u.name);
+
+                        // 结构体作为参数需要传址
+                        if (item && item->field->type->kind == STRUCTURE)
+                        {
+                            pOperand varTemp = newTemp();
+                            genInterCode(IR_GET_ADDR, varTemp, argTemp->op);
+                            pOperand varTempCopy =
+                                newOperand(OPERAND_ADDRESS, varTemp->u.name);
+                            // varTempCopy->isAddr = TRUE;
+                            genInterCode(IR_ARG, varTempCopy);
+                        }
+                    }
+                    // 一般参数直接传值
+                    else
+                    {
+                        genInterCode(IR_ARG, argTemp->op);
+                    }
+                    argTemp = argTemp->brother;
+                }
+                if (place)
+                {
+                    genInterCode(IR_CALL, place, funcTemp);
+                }
+                else
+                {
+                    pOperand temp = newTemp();
+                    genInterCode(IR_CALL, temp, funcTemp);
+                }
+            }
+        }
+        // Exp -> ID LP RP
+        else
+        {
+            if (!strcmp(child->value, "read"))
+            {
+                genInterCode(IR_READ, place);
+            }
+            else
+            {
+                if (place)
+                {
+                    genInterCode(IR_CALL, place, funcTemp);
+                }
+                else
+                {
+                    pOperand temp = newTemp();
+                    genInterCode(IR_CALL, temp, funcTemp);
+                }
+            }
+        }
+    }
+    // Exp -> ID
+    else if (!strcmp(child->name, "ID"))
+    {
+        pTableItem item = getSymbolTableItem(symbolTable, child->value);
+        // 根据讲义，因为结构体不允许赋值，结构体做形参时是传址的方式
+        interCodesWrap->tempVarNum--;
+        if (item->field->isArg && item->field->type->kind == STRUCTURE)
+        {
+            setOperand(place, OPERAND_ADDRESS, (void *)newString(child->value));
+            // place->isAddr = TRUE;
+        }
+        // 非结构体参数情况都当做变量处理
+        else
+        {
+            setOperand(place, OPERAND_VARIABLE, (void *)newString(child->value));
+        }
+
+        // pOperand t1 = newOperand(OPERAND_VARIABLE, id_name->field->name);
+        // genInterCode(IR_ASSIGN, place, t1);
+    }
+    else
+    {
+        // // Exp -> FLOAT
+        // 无浮点数常数
+        // if (!strcmp(child->name, "FLOAT")) {
+        //     pOperand t1 = newOperand(OPERAND_CONSTANT, child->value);
+        //     genInterCode(IR_ASSIGN, place, t1);
+        // }
+
+        // Exp -> INT
+        interCodesWrap->tempVarNum--;
+        setOperand(place, OPERAND_CONSTANT, (void *)atoi(child->value));
+        // pOperand t1 = newOperand(OPERAND_CONSTANT, node->child->value);
+        // genInterCode(IR_ASSIGN, place, t1);
+    }
+}
+
+/**
+ * @brief 条件表达式的翻译模式
+ *
+ * @param node
+ * @param p1
+ * @param p2
+ */
+pInterCodes translate_Cond(pNode exp, pOperand p1, pOperand p2)
+{
+}
+
+void translate_StmtList(pNode node)
+{
 }

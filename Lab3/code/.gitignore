@@ -4,3 +4,4 @@ main
 syntax.output 
 *.tab.* 
 lex.yy.c
+*.ir
