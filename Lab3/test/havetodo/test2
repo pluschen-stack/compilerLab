@@ -12,6 +12,6 @@ int main(){
         result = fact(m);
     else 
         result = 1;
-    wirte(result);
+    write(result);
     return 0;
 }

@@ -19,7 +19,7 @@ pOperand newOperand(int kind, void *value)
         exit(EXIT_FAILURE);
     }
     p->kind = kind;
-    assert(kind > 0 && kind < 6);
+    assert(kind >= 0 && kind < 6);
     switch (kind)
     {
     case OPERAND_CONSTANT:
@@ -34,6 +34,32 @@ pOperand newOperand(int kind, void *value)
         break;
     }
     return p;
+}
+
+pOperand copyOperand(pOperand p){
+    pOperand newP = malloc(sizeof(struct Operand_));
+    if (!newP)
+    {
+        fprintf(stderr, "[%s:%d]Out of memory(%ld bytes)\n", __FILE__, __LINE__, sizeof(struct Operand_));
+        exit(EXIT_FAILURE);
+    }
+    int kind = p->kind;
+    newP->kind = kind;
+    assert(kind >= 0 && kind < 6);
+    switch (kind)
+    {
+    case OPERAND_CONSTANT:
+        newP->u.value = p->u.value;
+        break;
+    case OPERAND_VARIABLE:
+    case OPERAND_FUNCTION:
+    case OPERAND_ADDRESS:
+    case OPERAND_RELOP:
+    case OPERAND_LABEL:
+        newP->u.name = newString(p->u.name);
+        break;
+    }
+    return newP;
 }
 
 void updateOperand(pOperand p, int kind, void *value)
@@ -107,30 +133,33 @@ pInterCode newInterCode(int kind, int argc, ...)
     case IR_PARAM:
     case IR_READ:
     case IR_WRITE:
-        p->u.oneOp.op = va_arg(vaList, pOperand);
+        p->u.oneOp.op = copyOperand(va_arg(vaList, pOperand));
         break;
     case IR_ASSIGN:
     case IR_GET_ADDR:
     case IR_READ_ADDR:
     case IR_WRITE_ADDR:
     case IR_CALL:
-        p->u.assign.left = va_arg(vaList, pOperand);
-        p->u.assign.right = va_arg(vaList, pOperand);
+        p->u.assign.left = copyOperand(va_arg(vaList, pOperand));
+        p->u.assign.right = copyOperand(va_arg(vaList, pOperand));
         break;
     case IR_ADD:
     case IR_SUB:
     case IR_MUL:
     case IR_DIV:
-        p->u.binOp.result = va_arg(vaList, pOperand);
-        p->u.binOp.op1 = va_arg(vaList, pOperand);
-        p->u.binOp.op2 = va_arg(vaList, pOperand);
+        p->u.binOp.result = copyOperand(va_arg(vaList, pOperand));
+        p->u.binOp.op1 = copyOperand(va_arg(vaList, pOperand));
+        p->u.binOp.op2 = copyOperand(va_arg(vaList, pOperand));
         break;
     case IR_DEC:
-        p->u.dec.op = va_arg(vaList, pOperand);
+        p->u.dec.op = copyOperand(va_arg(vaList, pOperand));
         p->u.dec.size = va_arg(vaList, int);
         break;
     case IR_IF_GOTO:
-
+        p->u.ifGoto.x = copyOperand(va_arg(vaList, pOperand));
+        p->u.ifGoto.relop = copyOperand(va_arg(vaList, pOperand));
+        p->u.ifGoto.y = copyOperand(va_arg(vaList, pOperand));
+        p->u.ifGoto.z = copyOperand(va_arg(vaList, pOperand));
         break;
     }
     return p;
@@ -222,6 +251,7 @@ pInterCodesWrap newInterCodesWrap()
     p->head = NULL;
     p->tail = NULL;
     p->labelNum = 0;
+    p->tempVarNum = 0;
     return p;
 }
 
@@ -291,7 +321,7 @@ pOperand newLabel()
  */
 void printOperand(pOperand operand)
 {
-    assert(operand != NULL);
+    // assert(operand != NULL);
     switch (operand->kind)
     {
     case OPERAND_CONSTANT:
@@ -564,13 +594,14 @@ void translate_DecList(pNode node)
     while (node)
     {
         translate_Dec(node->child);
-        if (node->child->brother){
+        if (node->child->brother)
+        {
             node = node->child->brother->brother;
         }
-        else{
+        else
+        {
             break;
         }
-        
     }
 }
 
@@ -744,10 +775,10 @@ void translate_Exp(pNode exp, pOperand place)
                     pNode exp2 = child->brother->brother;
                     translate_Exp(exp2, t2);
                     //如果左边是数组,所以它是一个地址值
-                    if (child->child->brother && strcmp(child->child->brother->name, "LB"))
+                    if (child->child->brother && !strcmp(child->child->brother->name, "LB"))
                     {
                         //如果右边也是一个数组，所以它也是一个地址值
-                        if (exp2->child->brother && strcmp(exp2->child->brother->name, "LB"))
+                        if (exp2->child->brother && !strcmp(exp2->child->brother->name, "LB"))
                         {
                             pInterCodes code1 = newInterCodes(newInterCode(IR_READ_ADDR, 2, t2, t2));
                             addInterCodesToWrap(interCodesWrap, code1);
@@ -757,7 +788,7 @@ void translate_Exp(pNode exp, pOperand place)
                     else
                     {
                         //如果右边也是一个数组，所以它也是一个地址值
-                        if (exp2->child->brother && strcmp(exp2->child->brother->name, "LB"))
+                        if (exp2->child->brother && !strcmp(exp2->child->brother->name, "LB"))
                         {
                             pInterCodes code1 = newInterCodes(newInterCode(IR_READ_ADDR, 2, t2, t2));
                             addInterCodesToWrap(interCodesWrap, code1);
@@ -765,7 +796,9 @@ void translate_Exp(pNode exp, pOperand place)
                         addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ASSIGN, 2, t1, t2)));
                     }
                     // 这里无论是地址还是变量都应该使用这条语句
-                    addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ASSIGN, 2, place, t1)));
+                    if(place){
+                        addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ASSIGN, 2, place, t1)));
+                    }
                 }
                 //      | Exp PLUS Exp
                 //      | Exp MINUS Exp
@@ -936,7 +969,8 @@ void translate_Exp(pNode exp, pOperand place)
         pOperand t1 = newTemp();
         pNode exp2 = child->brother;
         translate_Exp(exp2, t1);
-        pOperand zero = newOperand(OPERAND_CONSTANT, 0);
+        int zero_Num = 0;
+        pOperand zero = newOperand(OPERAND_CONSTANT, &zero_Num);
         // 如果是数组
         if (exp2->child->brother && !strcmp(exp2->child->brother->name, "LB"))
         {
@@ -959,7 +993,7 @@ void translate_Exp(pNode exp, pOperand place)
             if (!strcmp(child->value, "write"))
             {
                 // 因为write传递函数参数的方式不一样因此需要如下修改
-                pOperand temp = interCodesWrap->tail->code->u.oneOp.op;
+                pOperand temp = copyOperand(interCodesWrap->tail->code->u.oneOp.op);
                 pInterCodes prevCode = interCodesWrap->tail->prev;
                 freeInterCodes(interCodesWrap->tail);
                 interCodesWrap->tail = prevCode;
@@ -1058,10 +1092,170 @@ void translate_Args(pNode node)
  * @param p1
  * @param p2
  */
-pInterCodes translate_Cond(pNode exp, pOperand p1, pOperand p2)
+pInterCodes translate_Cond(pNode node, pOperand labelTrue, pOperand labelFalse)
 {
+    assert(node != NULL);
+    // Exp -> Exp AND Exp
+    //      | Exp OR Exp
+    //      | Exp RELOP Exp
+    //      | NOT Exp
+
+    // Exp -> NOT Exp
+    if (!strcmp(node->child->name, "NOT"))
+    {
+        translate_Cond(node->child->brother, labelFalse, labelTrue);
+    }
+    // Exp -> Exp RELOP Exp
+    else if (!strcmp(node->child->brother->name, "RELOP"))
+    {
+        pNode exp1 = node->child;
+        pNode exp2 = node->child->brother->brother;
+        pOperand t1 = newTemp();
+        pOperand t2 = newTemp();
+        translate_Exp(exp1, t1);
+        translate_Exp(exp2, t2);
+        pOperand relop =
+            newOperand(OPERAND_RELOP, newString(node->child->brother->value));
+        
+        // 可能左边是一个二维数组
+        if (exp1->child->brother && !strcmp(exp1->child->brother->name, "LB"))
+        {
+            addInterCodesToWrap(interCodesWrap,
+                                newInterCodes(newInterCode(IR_READ_ADDR, 2, t1, t1)));
+        }
+        if (exp2->child->brother && !strcmp(exp2->child->brother->name, "LB"))
+        {
+            addInterCodesToWrap(interCodesWrap,
+                                newInterCodes(newInterCode(IR_READ_ADDR, 2, t2, t2)));
+        }
+        addInterCodesToWrap(interCodesWrap,
+                            newInterCodes(newInterCode(IR_IF_GOTO, 4, t1, relop, t2, labelTrue)));
+        addInterCodesToWrap(interCodesWrap,
+                            newInterCodes(newInterCode(IR_GOTO, 1, labelFalse)));
+    }
+    // Exp -> Exp AND Exp
+    else if (!strcmp(node->child->brother->name, "AND"))
+    {
+        pOperand label1 = newLabel();
+        translate_Cond(node->child, label1, labelFalse);
+        addInterCodesToWrap(interCodesWrap,
+                            newInterCodes(newInterCode(IR_LABEL, 1, label1)));
+        translate_Cond(node->child->brother->brother, labelTrue, labelFalse);
+    }
+    // Exp -> Exp OR Exp
+    else if (!strcmp(node->child->brother->name, "OR"))
+    {
+        pOperand label1 = newLabel();
+        translate_Cond(node->child, labelTrue, label1);
+        addInterCodesToWrap(interCodesWrap,
+                            newInterCodes(newInterCode(IR_LABEL, 1, label1)));
+        translate_Cond(node->child->brother->brother, labelTrue, labelFalse);
+    }
+    // other cases
+    else
+    {
+        pOperand t1 = newTemp();
+        translate_Exp(node, t1);
+        int false_Constant = 0;
+        pOperand t2 = newOperand(OPERAND_CONSTANT, &false_Constant);
+        pOperand relop = newOperand(OPERAND_RELOP, newString("!="));
+
+        if (node->child->brother && !strcmp(node->child->brother->name, "LB"))
+        {
+            addInterCodesToWrap(interCodesWrap,
+                                newInterCodes(newInterCode(IR_READ_ADDR, 2, t1, t1)));
+        }
+        addInterCodesToWrap(interCodesWrap,
+                            newInterCodes(newInterCode(IR_IF_GOTO, 4, t1, relop, t2, labelTrue)));
+        addInterCodesToWrap(interCodesWrap,
+                            newInterCodes(newInterCode(IR_GOTO, 1, labelFalse)));
+    }
 }
 
 void translate_StmtList(pNode node)
 {
+    /*
+    StmtList:           Stmt StmtList
+        |
+    ;
+    */
+    while (node)
+    {
+        translate_Stmt(node->child);
+        node = node->child->brother;
+    }
+}
+
+void translate_Stmt(pNode node)
+{
+    /*
+    Stmt:               Exp SEMI
+        |               CompSt
+        |               RETURN Exp SEMI
+        |               IF LP Exp RP Stmt %prec LOWER_THAN_ELSE
+        |               IF LP Exp RP Stmt ELSE Stmt
+        |               WHILE LP Exp RP Stmt
+        |               error SEMI
+        ;
+    */
+    // Stmt -> Exp SEMI
+    if (!strcmp(node->child->name, "Exp"))
+    {
+        translate_Exp(node->child, NULL);
+    }
+
+    // Stmt -> CompSt
+    else if (!strcmp(node->child->name, "CompSt"))
+    {
+        translate_CompSt(node->child);
+    }
+
+    // Stmt -> RETURN Exp SEMI
+    else if (!strcmp(node->child->name, "RETURN"))
+    {
+        pOperand t1 = newTemp();
+        translate_Exp(node->child->brother, t1);
+        addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_RETURN, 1, t1)));
+    }
+
+    // Stmt -> IF LP Exp RP Stmt
+    else if (!strcmp(node->child->name, "IF"))
+    {
+        pNode exp = node->child->brother->brother;
+        pNode stmt = exp->brother->brother;
+        pOperand label1 = newLabel();
+        pOperand label2 = newLabel();
+        translate_Cond(exp, label1, label2);
+        addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label1)));
+        translate_Stmt(stmt);
+
+        // Stmt -> IF LP Exp RP Stmt ELSE Stmt
+        if (stmt->brother)
+        {
+            
+            pOperand label3 = newLabel();
+            addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_GOTO, 1, label3)));
+            addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label2)));
+            translate_Stmt(stmt->brother->brother);
+            addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label3)));
+        }
+        else
+        {
+            addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label2)));
+        }
+    }
+
+    // Stmt -> WHILE LP Exp RP Stmt
+    else if (!strcmp(node->child->name, "WHILE"))
+    {
+        pOperand label1 = newLabel();
+        pOperand label2 = newLabel();
+        pOperand label3 = newLabel();
+        addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label1)));
+        translate_Cond(node->child->brother->brother, label2, label3);
+        addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label2)));
+        translate_Stmt(node->child->brother->brother->brother->brother);
+        addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_GOTO, 1, label1)));
+        addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label3)));
+    }
 }

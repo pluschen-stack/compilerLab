@@ -20,8 +20,8 @@ struct Operand_
         OPERAND_VARIABLE, //变量
         OPERAND_FUNCTION, //函数
         OPERAND_ADDRESS,  //地址
-        OPERAND_RELOP,
-        OPERAND_LABEL
+        OPERAND_RELOP,    //逻辑运算符
+        OPERAND_LABEL     //标号，跳转语句用
     } kind;
     union
     {
@@ -120,5 +120,6 @@ void translate_VarDec(pNode node, pOperand place);
 void translate_Exp(pNode exp, pOperand place);
 void translate_StmtList(pNode node);
 void translate_Args(pNode node);
-pInterCodes translate_Cond(pNode exp,pOperand p1,pOperand p2);
+void translate_Stmt(pNode node);
+pInterCodes translate_Cond(pNode exp, pOperand p1, pOperand p2);
 #endif
