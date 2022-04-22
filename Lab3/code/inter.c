@@ -36,7 +36,8 @@ pOperand newOperand(int kind, void *value)
     return p;
 }
 
-pOperand copyOperand(pOperand p){
+pOperand copyOperand(pOperand p)
+{
     pOperand newP = malloc(sizeof(struct Operand_));
     if (!newP)
     {
@@ -124,7 +125,6 @@ pInterCode newInterCode(int kind, int argc, ...)
     p->kind = kind;
     switch (kind)
     {
-    // TODO 还需要继续产生其他类型的中间结构体
     case IR_LABEL:
     case IR_FUNCTION:
     case IR_GOTO:
@@ -339,23 +339,24 @@ void printOperand(pOperand operand)
 
 unsigned int getSize(pType type)
 {
+    //事实上这里的代码是有严重的风险的，因为数组的elem不一定位NULL吧
     if (type == NULL)
         return 0;
     else if (type->kind == BASIC)
         return 4;
     else if (type->kind == ARRAY)
         return type->u.array.size * getSize(type->u.array.elem);
-    else if (type->kind == STRUCTURE)
-    {
-        int size = 0;
-        pFieldList temp = type->u.structure.structureField;
-        while (temp)
-        {
-            size += getSize(temp->type);
-            temp = temp->tail;
-        }
-        return size;
-    }
+    // else if (type->kind == STRUCTURE)
+    // {
+    //     int size = 0;
+    //     pFieldList temp = type->u.structure.structureField;
+    //     while (temp)
+    //     {
+    //         size += getSize(temp->type);
+    //         temp = temp->tail;
+    //     }
+    //     return size;
+    // }
     return 0;
 }
 
@@ -510,7 +511,6 @@ void translate_ExtDef(pNode node)
 
         translate_FunDec(secondChild);
         translate_CompSt(secondChild->brother);
-        
     }
 }
 
@@ -545,12 +545,13 @@ void translate_CompSt(pNode node)
         |               error RC
     */
     pNode secondChild = node->child->brother;
-    
+
     if (!strcmp(secondChild->name, "DefList"))
     {
         translate_DefList(secondChild);
         secondChild = secondChild->brother;
     }
+
     if (!strcmp(secondChild->name, "StmtList"))
     {
         translate_StmtList(secondChild);
@@ -617,11 +618,13 @@ void translate_Dec(pNode node)
         ;
     */
     pNode child = node->child;
+
     // VarDec ASSIGNOP Exp
     if (child->brother)
     {
+
         pOperand t1 = newTemp();
-        translate_VarDec(child->brother, t1);
+        translate_VarDec(child, t1);
         pOperand t2 = newTemp();
         translate_Exp(child->brother->brother, t2);
         //只用考虑简单变量的复制
@@ -648,6 +651,7 @@ void translate_VarDec(pNode node, pOperand place)
     // VarDec -> ID
     if (!strcmp(node->child->name, "ID"))
     {
+
         pTableItem temp = getSymbolTableItem(symbolTable, node->child->value);
         pType type = temp->field->type;
         if (type->kind == BASIC)
@@ -662,7 +666,6 @@ void translate_VarDec(pNode node, pOperand place)
         }
         else if (type->kind == ARRAY)
         {
-            // TODO 如果需要完成高维数组就还需要继续修改
             pInterCodes p = newInterCodes(newInterCode(
                 IR_DEC,
                 2,
@@ -670,16 +673,10 @@ void translate_VarDec(pNode node, pOperand place)
                 getSize(type)));
             addInterCodesToWrap(interCodesWrap, p);
         }
-        // else if (type->kind == STRUCTURE)
-        // {
-        //     // 3.1选做
-        //     pInterCodes p = newInterCodes(newInterCode(
-        //         IR_DEC,
-        //         2,
-        //         newOperand(OPERAND_VARIABLE, newString(temp->field->name)),
-        //         getSize(type)));
-        //     addInterCodesToWrap(interCodesWrap, p);
-        // }
+        else if (type->kind == STRUCTURE)
+        {
+            printf("Cannot translate: Code contains variables or parameters of structure type.");
+        }
     }
     // VarDec -> VarDec LB INT RB
     else
@@ -717,6 +714,7 @@ void translate_Exp(pNode exp, pOperand place)
     //      | FLOAT
 
     // Exp -> LP Exp RP
+
     pNode child = exp->child;
     if (!strcmp(child->name, "LP"))
     {
@@ -803,7 +801,8 @@ void translate_Exp(pNode exp, pOperand place)
                         addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ASSIGN, 2, t1, t2)));
                     }
                     // 这里无论是地址还是变量都应该使用这条语句
-                    if(place){
+                    if (place)
+                    {
                         addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ASSIGN, 2, place, t1)));
                     }
                     freeOperand(t1);
@@ -862,7 +861,6 @@ void translate_Exp(pNode exp, pOperand place)
             }
         }
         // 数组和结构体访问
-        // TODO 先写到这里
         else
         {
             // Exp -> Exp LB Exp RB
@@ -870,10 +868,76 @@ void translate_Exp(pNode exp, pOperand place)
             if (!strcmp(child->brother->name, "LB"))
             {
                 // 高维数组
+                // 这里可以注意的一个细节是
+                // 例：a[0][1][1] 将会翻译成如下所示，所以可以递归的去计算地址
+                /*
+                Exp (5)
+                    Exp (5)
+                        Exp (5)
+                            ID: a
+                        LB
+                        Exp (5)
+                            INT: 0
+                        RB
+                    LB
+                    Exp (5)
+                        INT: 1
+                    RB
+                LB
+                Exp (5)
+                    INT: 1
+                RB
+                */
                 if (child->child->brother && !strcmp(child->child->brother->name, "LB"))
                 {
-                    perror("没有选做高维数组，翻译失败");
-                    return;
+                    // 因为数组的维数每次都能打满，也就是不会有定义a[2][2][2]却使用了a[1][1]的情况（这是语法错误）
+                    // 所以只要简单计算一下偏移就好了,不过这里的代码真的很丑，强烈不推荐这样写
+
+                    unsigned factor = 4;
+                    unsigned depth = 0;
+                    pNode id = child;
+                    while (id->child)
+                    {
+                        id = id->child;
+                        depth++;
+                    }
+                    pOperand base = newOperand(OPERAND_VARIABLE, id->value);
+                    pTableItem item = getSymbolTableItem(symbolTable, id->value);
+                    assert(item->field->type->kind == ARRAY);
+                    pType type = item->field->type;
+                    id = child;
+
+                    pOperand offset = newTemp();
+                    pOperand factorOperand = newTemp();
+                    pOperand addOffset = newTemp();
+                    unsigned zero = 0;
+                    addInterCodesToWrap(interCodesWrap,
+                                        newInterCodes(newInterCode(IR_ASSIGN, 2, offset, newOperand(OPERAND_CONSTANT, &zero))));
+
+                    while (id->child)
+                    {
+                        pOperand tempOperand = newTemp();
+                        unsigned temp = depth--;
+                        pType tempType = type;
+                        while (temp)
+                        {
+                            temp -= 1;
+                            tempType = tempType->u.array.elem;
+                        }
+                        factor = getSize(tempType);
+                        updateOperand(factorOperand, OPERAND_CONSTANT, &factor);
+                        translate_Exp(id->brother->brother, tempOperand);
+                        addInterCodesToWrap(interCodesWrap,
+                                            newInterCodes(newInterCode(IR_MUL, 3, addOffset, factorOperand, tempOperand)));
+                        addInterCodesToWrap(interCodesWrap,
+                                            newInterCodes(newInterCode(IR_ADD, 3, offset, offset, addOffset)));
+                        id = id->child;
+                        freeOperand(tempOperand);
+                    }
+                    pOperand target;
+                    target = newTemp();
+                    addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_GET_ADDR, 2, target, base)));
+                    addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ADD, 3, place, target, offset)));
                 }
                 // 低维数组
                 else
@@ -886,31 +950,22 @@ void translate_Exp(pNode exp, pOperand place)
                     pOperand width;
                     pOperand offset = newTemp();
                     pOperand target;
-                    // 根据假设，Exp1只会展开为 Exp DOT ID 或 ID
-                    // 我们让前一种情况吧ID作为name回填进place返回到这里的base处，
-                    // 在语义分析时将结构体变量也填进表（因为假设无重名），这样两种情况都可以查表得到。
                     pTableItem item = getSymbolTableItem(symbolTable, base->u.name);
                     assert(item->field->type->kind == ARRAY);
                     unsigned size = getSize(item->field->type->u.array.elem);
                     width = newOperand(
                         OPERAND_CONSTANT, &size);
                     addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_MUL, 3, offset, idx, width)));
-                    target = newTemp();
-                    addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_GET_ADDR, 2, target, base)));
-                    // // 如果是ID[Exp],
-                    // // 则需要对ID取址，如果前面是结构体内访问，则会返回一个地址类型，不需要再取址
-                    // if (base->kind == OPERAND_VARIABLE)
-                    // {
-                    //     printf("非结构体数组访问\n");
-                    //     target = newTemp();
-                    //     pInterCodes code = newInterCodes(newInterCode(IR_GET_ADDR, target, base));
-                    //     addInterCodesToWrap(interCodesWrap, code);
-                    // }
-                    // else
-                    // {
-                    //     // printf("结构体数组访问\n");
-                    //     target = base;
-                    // }
+                    //如果不是数组参数，那么不需要进行取地址操作
+                    if (base->kind == OPERAND_VARIABLE)
+                    {
+                        target = newTemp();
+                        addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_GET_ADDR, 2, target, base)));
+                    }
+                    else
+                    {
+                        target = copyOperand(base);
+                    }
                     addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ADD, 3, place, target, offset)));
                     // 注意：现在place中放置的值是对应数组的下标的地址
                     freeOperand(idx);
@@ -923,58 +978,7 @@ void translate_Exp(pNode exp, pOperand place)
             // Exp -> Exp DOT ID
             else
             {
-                perror("没有选做结构体，因此不完成");
-                // //结构体
-                // pOperand temp = newTemp();
-                // translate_Exp(child, temp);
-                // // 两种情况，Exp直接为一个变量，则需要先取址，
-                // // 若Exp为数组或者多层结构体访问或结构体形参，则target会被填成地址，可以直接用。
-                // pOperand target;
-                // if (temp->kind == OPERAND_ADDRESS)
-                // {
-                //     target = newOperand(temp->kind, temp->u.name);
-                // }
-                // else
-                // {
-                //     target = newTemp();
-                //     addInterCodesToWrap(interCodesWrap,newInterCodes(newInterCode(IR_GET_ADDR,target,temp)));
-                // }
-                // pOperand id = newOperand(
-                //     OPERAND_VARIABLE, newString(child->brother->brother->value));
-                // unsigned offset = 0;
-                // pTableItem item = getSymbolTableItem(symbolTable, temp->u.name);
-                // //结构体数组，temp是临时变量，查不到表，需要用处理数组时候记录下的数组名查表
-                // if (item == NULL)
-                // {
-                //     item = getSymbolTableItem(symbolTable, interCodesWrap->lastArrayName);
-                // }
-                // pFieldList tmp;
-                // // 结构体数组 eg: a[5].b
-                // if (item->field->type->kind == ARRAY)
-                // {
-                //     tmp = item->field->type->u.array.elem->u.structure.structureField;
-                // }
-                // // 一般结构体
-                // else
-                // {
-                //     tmp = item->field->type->u.structure.structureField;
-                // }
-                // // 遍历获得offset
-                // while (tmp)
-                // {
-                //     if (!strcmp(tmp->name, id->u.name))
-                //         break;
-                //     offset += getSize(tmp->type);
-                //     tmp = tmp->tail;
-                // }
-                // pOperand tOffset = newOperand(OPERAND_CONSTANT, offset);
-                // if (place)
-                // {
-                //     addInterCodesToWrap(interCodesWrap,newInterCodes(newInterCode(IR_ADD,3,place, target, tOffset)));
-                //     // 为了处理结构体里的数组把id名通过place回传给上层
-                //     updateOperand(place, OPERAND_ADDRESS, (void *)newString(id->u.name));
-                //     // place->isAddr = TRUE;
-                // }
+                printf("Cannot translate: Code contains variables or parameters of structure type.");
             }
         }
     }
@@ -1059,21 +1063,17 @@ void translate_Exp(pNode exp, pOperand place)
     // Exp -> ID
     else if (!strcmp(child->name, "ID"))
     {
-        // pTableItem item = getSymbolTableItem(symbolTable, child->value);
         interCodesWrap->tempVarNum--;
-        updateOperand(place, OPERAND_VARIABLE, newString(child->value));
-        // 根据讲义，因为结构体不允许赋值，结构体做形参时是传址的方式
-        // 仔细思考，这里的应用场景应该是当结构体做形参的时候，然后去使用的时候
-        // if (item->field->isParam = true && item->field->type->kind == STRUCTURE)
-        // {
-        //     updateOperand(place, OPERAND_ADDRESS, newString(child->value));
-        // }
-        // 非结构体参数情况都当做变量处理
-        // 即使此时是结构体，因为是通过DEC t1 得到的，t1是地址
-        // else
-        // {
-        // updateOperand(place, OPERAND_VARIABLE, newString(child->value));
-        // }
+        pTableItem item = getSymbolTableItem(symbolTable, child->value);
+        if (item->field->isParam && item->field->type->kind == ARRAY)
+        {
+            updateOperand(place, OPERAND_ADDRESS, newString(child->value));
+            // place->isAddr = TRUE;
+        }
+        else
+        {
+            updateOperand(place, OPERAND_VARIABLE, newString(child->value));
+        }
     }
     else
     {
@@ -1093,14 +1093,18 @@ void translate_Args(pNode node)
          |               Exp
     ;
      */
-    pNode child = node->child;
+    pNode exp = node->child;
     pOperand temp = newTemp();
-    translate_Exp(child, temp);
+    translate_Exp(exp, temp);
+    if (exp->child->brother && !strcmp(exp->child->brother->name, "LB"))
+    {
+        addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_READ_ADDR, 2, temp, temp)));
+    }
     addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ARG, 1, temp)));
     // Args -> Exp COMMA Args
-    if (child->brother)
+    if (exp->brother)
     {
-        translate_Args(child->brother->brother);
+        translate_Args(exp->brother->brother);
     }
     freeOperand(temp);
 }
@@ -1136,7 +1140,7 @@ pInterCodes translate_Cond(pNode node, pOperand labelTrue, pOperand labelFalse)
         translate_Exp(exp2, t2);
         pOperand relop =
             newOperand(OPERAND_RELOP, newString(node->child->brother->value));
-        
+
         // 可能左边是一个二维数组
         if (exp1->child->brother && !strcmp(exp1->child->brother->name, "LB"))
         {
@@ -1199,7 +1203,7 @@ pInterCodes translate_Cond(pNode node, pOperand labelTrue, pOperand labelFalse)
 
 void translate_StmtList(pNode node)
 {
-    assert(node!=NULL);
+    assert(node != NULL);
     /*
     StmtList:           Stmt StmtList
         |
@@ -1255,11 +1259,11 @@ void translate_Stmt(pNode node)
         translate_Cond(exp, label1, label2);
         addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label1)));
         translate_Stmt(stmt);
-        
+
         // Stmt -> IF LP Exp RP Stmt ELSE Stmt
         if (stmt->brother)
         {
-            
+
             pOperand label3 = newLabel();
             addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_GOTO, 1, label3)));
             addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label2)));

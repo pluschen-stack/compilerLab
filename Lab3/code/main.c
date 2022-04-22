@@ -64,7 +64,6 @@ int main(int argc, char **argv)
         
         startSemanticAnalysis(root);
         // checkFucDeclare();
-        
         interCodesWrap = newInterCodesWrap();
         
         generateInterCodes(root);
