@@ -117,6 +117,8 @@ void translate_Def(pNode node);
 void translate_DecList(pNode node);
 void translate_Dec(pNode node);
 void translate_VarDec(pNode node, pOperand place);
+void translate_Exp(pNode exp, pOperand place);
 void translate_StmtList(pNode node);
+void translate_Args(pNode node);
 pInterCodes translate_Cond(pNode exp,pOperand p1,pOperand p2);
 #endif

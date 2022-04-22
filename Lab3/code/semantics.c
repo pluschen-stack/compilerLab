@@ -352,6 +352,7 @@ pFieldList newFieldList(char *name, pType type)
     assert(fieldList != NULL);
     fieldList->name = newString(name);
     fieldList->type = type;
+    fieldList->isParam = false;
     fieldList->tail = NULL;
     return fieldList;
 }
@@ -370,6 +371,7 @@ void printFieldList(pFieldList fieldList)
         printf("fieldList name is: %s\n", fieldList->name);
         printf("FieldList Type:\n");
         printType(fieldList->type);
+        printf("isParam: %d\n", fieldList->isParam);
         printFieldList(fieldList->tail);
     }
 }
@@ -550,13 +552,13 @@ pSymbolTable initSymbolTable()
     // 添加read和write函数
     pTableItem readFun = newTableItem(
         0, newFieldList(newString("read"),
-                        newType(FUNCTION, 0, NULL, newType(BASIC, INT_TYPE))));
+                        newType(FUNCTION, 0, NULL, newType(BASIC, INT_TYPE_))));
 
     pTableItem writeFun = newTableItem(
         0, newFieldList(newString("write"),
                         newType(FUNCTION, 1,
-                                newFieldList("arg1", newType(BASIC, INT_TYPE)),
-                                newType(BASIC, INT_TYPE))));
+                                newFieldList("arg1", newType(BASIC, INT_TYPE_)),
+                                newType(BASIC, INT_TYPE_))));
 
     insertTableItem(symbolTable, readFun);
     insertTableItem(symbolTable, writeFun);
@@ -1059,7 +1061,6 @@ void FunDec(pNode currentNode, pType type)
         tableItem->field->type->u.function.argv = VarList(child->brother->brother, &argc);
         tableItem->field->type->u.function.argc = argc;
     }
-    perror("1");
     //是声明语句
     // if (!strcmp(currentNode->brother->name, "SEMI"))
     // {
@@ -1125,7 +1126,6 @@ void FunDec(pNode currentNode, pType type)
     //函数定义语句，是否冲突
     if (checkTableItemConflict(symbolTable, tableItem))
     {
-        perror("2");
         pError(REDEF_FUNC, currentNode->lineno, tableItem->field->name);
         freeTableItem(tableItem);
         tableItem = NULL;
@@ -1245,6 +1245,7 @@ pFieldList ParamDec(pNode currentNode)
     }
     else
     {
+        tableItem->field->isParam = true;
         insertTableItem(symbolTable, tableItem);
         return tableItem->field;
     }
@@ -1412,7 +1413,7 @@ pType Exp(pNode currentNode)
             {
                 //检查左值
                 pNode lchild = child->child;
-
+                
                 if (!strcmp(lchild->name, "FLOAT") ||
                     !strcmp(lchild->name, "INT"))
                 {
@@ -1425,6 +1426,7 @@ pType Exp(pNode currentNode)
                 {
                     if (!checkType(p1, p2))
                     {
+                        perror("2");
                         //报错，类型不匹配
                         pError(TYPE_MISMATCH_ASSIGN, child->lineno, NULL);
                     }

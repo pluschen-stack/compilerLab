@@ -66,6 +66,7 @@ int main(int argc, char **argv)
         // checkFucDeclare();
         
         interCodesWrap = newInterCodesWrap();
+        
         generateInterCodes(root);
         
         printInterCodes(interCodesWrap);
