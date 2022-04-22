@@ -510,6 +510,7 @@ void translate_ExtDef(pNode node)
 
         translate_FunDec(secondChild);
         translate_CompSt(secondChild->brother);
+        
     }
 }
 
@@ -544,13 +545,15 @@ void translate_CompSt(pNode node)
         |               error RC
     */
     pNode secondChild = node->child->brother;
+    
     if (!strcmp(secondChild->name, "DefList"))
     {
         translate_DefList(secondChild);
+        secondChild = secondChild->brother;
     }
-    if (!strcmp(secondChild->brother->name, "StmtList"))
+    if (!strcmp(secondChild->name, "StmtList"))
     {
-        translate_StmtList(secondChild->brother);
+        translate_StmtList(secondChild);
     }
 }
 
@@ -623,6 +626,8 @@ void translate_Dec(pNode node)
         translate_Exp(child->brother->brother, t2);
         //只用考虑简单变量的复制
         addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ASSIGN, 2, t1, t2)));
+        freeOperand(t1);
+        freeOperand(t2);
     }
     // VarDec
     else
@@ -762,6 +767,8 @@ void translate_Exp(pNode exp, pOperand place)
                 addInterCodesToWrap(interCodesWrap, code3);
                 pInterCodes code4 = newInterCodes(newInterCode(IR_LABEL, 1, label2));
                 addInterCodesToWrap(interCodesWrap, code4);
+                freeOperand(label1);
+                freeOperand(label2);
             }
             else
             {
@@ -799,6 +806,8 @@ void translate_Exp(pNode exp, pOperand place)
                     if(place){
                         addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ASSIGN, 2, place, t1)));
                     }
+                    freeOperand(t1);
+                    freeOperand(t2);
                 }
                 //      | Exp PLUS Exp
                 //      | Exp MINUS Exp
@@ -847,6 +856,8 @@ void translate_Exp(pNode exp, pOperand place)
                         pInterCodes divCode = newInterCodes(newInterCode(IR_DIV, 3, place, t1, t2));
                         addInterCodesToWrap(interCodesWrap, divCode);
                     }
+                    freeOperand(t1);
+                    freeOperand(t2);
                 }
             }
         }
@@ -902,6 +913,11 @@ void translate_Exp(pNode exp, pOperand place)
                     // }
                     addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ADD, 3, place, target, offset)));
                     // 注意：现在place中放置的值是对应数组的下标的地址
+                    freeOperand(idx);
+                    freeOperand(base);
+                    freeOperand(width);
+                    freeOperand(offset);
+                    freeOperand(target);
                 }
             }
             // Exp -> Exp DOT ID
@@ -977,6 +993,7 @@ void translate_Exp(pNode exp, pOperand place)
             addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_READ_ADDR, 2, t1, t1)));
         }
         addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_SUB, 3, place, zero, t1)));
+        freeOperand(t1);
     }
     // 函数调用
     // Exp -> ID LP Args RP
@@ -1011,6 +1028,7 @@ void translate_Exp(pNode exp, pOperand place)
                     pOperand temp = newTemp();
                     addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(
                                                             IR_CALL, 2, temp, funcTemp)));
+                    freeOperand(temp);
                 }
             }
         }
@@ -1033,6 +1051,7 @@ void translate_Exp(pNode exp, pOperand place)
                     pOperand temp = newTemp();
                     addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(
                                                             IR_CALL, 2, temp, funcTemp)));
+                    freeOperand(temp);
                 }
             }
         }
@@ -1083,6 +1102,7 @@ void translate_Args(pNode node)
     {
         translate_Args(child->brother->brother);
     }
+    freeOperand(temp);
 }
 
 /**
@@ -1132,6 +1152,8 @@ pInterCodes translate_Cond(pNode node, pOperand labelTrue, pOperand labelFalse)
                             newInterCodes(newInterCode(IR_IF_GOTO, 4, t1, relop, t2, labelTrue)));
         addInterCodesToWrap(interCodesWrap,
                             newInterCodes(newInterCode(IR_GOTO, 1, labelFalse)));
+        freeOperand(t1);
+        freeOperand(t2);
     }
     // Exp -> Exp AND Exp
     else if (!strcmp(node->child->brother->name, "AND"))
@@ -1141,6 +1163,7 @@ pInterCodes translate_Cond(pNode node, pOperand labelTrue, pOperand labelFalse)
         addInterCodesToWrap(interCodesWrap,
                             newInterCodes(newInterCode(IR_LABEL, 1, label1)));
         translate_Cond(node->child->brother->brother, labelTrue, labelFalse);
+        freeOperand(label1);
     }
     // Exp -> Exp OR Exp
     else if (!strcmp(node->child->brother->name, "OR"))
@@ -1150,6 +1173,7 @@ pInterCodes translate_Cond(pNode node, pOperand labelTrue, pOperand labelFalse)
         addInterCodesToWrap(interCodesWrap,
                             newInterCodes(newInterCode(IR_LABEL, 1, label1)));
         translate_Cond(node->child->brother->brother, labelTrue, labelFalse);
+        freeOperand(label1);
     }
     // other cases
     else
@@ -1169,11 +1193,13 @@ pInterCodes translate_Cond(pNode node, pOperand labelTrue, pOperand labelFalse)
                             newInterCodes(newInterCode(IR_IF_GOTO, 4, t1, relop, t2, labelTrue)));
         addInterCodesToWrap(interCodesWrap,
                             newInterCodes(newInterCode(IR_GOTO, 1, labelFalse)));
+        freeOperand(t1);
     }
 }
 
 void translate_StmtList(pNode node)
 {
+    assert(node!=NULL);
     /*
     StmtList:           Stmt StmtList
         |
@@ -1188,6 +1214,7 @@ void translate_StmtList(pNode node)
 
 void translate_Stmt(pNode node)
 {
+    assert(node != NULL);
     /*
     Stmt:               Exp SEMI
         |               CompSt
@@ -1195,7 +1222,6 @@ void translate_Stmt(pNode node)
         |               IF LP Exp RP Stmt %prec LOWER_THAN_ELSE
         |               IF LP Exp RP Stmt ELSE Stmt
         |               WHILE LP Exp RP Stmt
-        |               error SEMI
         ;
     */
     // Stmt -> Exp SEMI
@@ -1216,6 +1242,7 @@ void translate_Stmt(pNode node)
         pOperand t1 = newTemp();
         translate_Exp(node->child->brother, t1);
         addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_RETURN, 1, t1)));
+        freeOperand(t1);
     }
 
     // Stmt -> IF LP Exp RP Stmt
@@ -1228,7 +1255,7 @@ void translate_Stmt(pNode node)
         translate_Cond(exp, label1, label2);
         addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label1)));
         translate_Stmt(stmt);
-
+        
         // Stmt -> IF LP Exp RP Stmt ELSE Stmt
         if (stmt->brother)
         {
@@ -1238,11 +1265,14 @@ void translate_Stmt(pNode node)
             addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label2)));
             translate_Stmt(stmt->brother->brother);
             addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label3)));
+            freeOperand(label3);
         }
         else
         {
             addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label2)));
         }
+        freeOperand(label1);
+        freeOperand(label2);
     }
 
     // Stmt -> WHILE LP Exp RP Stmt
@@ -1257,5 +1287,8 @@ void translate_Stmt(pNode node)
         translate_Stmt(node->child->brother->brother->brother->brother);
         addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_GOTO, 1, label1)));
         addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_LABEL, 1, label3)));
+        freeOperand(label1);
+        freeOperand(label2);
+        freeOperand(label3);
     }
 }
