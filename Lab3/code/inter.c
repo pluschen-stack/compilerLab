@@ -546,12 +546,20 @@ void translate_CompSt(pNode node)
     */
     pNode secondChild = node->child->brother;
 
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 0a244460f1b9703d8ee77d47f975bb61303c521c
     if (!strcmp(secondChild->name, "DefList"))
     {
         translate_DefList(secondChild);
         secondChild = secondChild->brother;
     }
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 0a244460f1b9703d8ee77d47f975bb61303c521c
     if (!strcmp(secondChild->name, "StmtList"))
     {
         translate_StmtList(secondChild);
@@ -618,7 +626,11 @@ void translate_Dec(pNode node)
         ;
     */
     pNode child = node->child;
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 0a244460f1b9703d8ee77d47f975bb61303c521c
     // VarDec ASSIGNOP Exp
     if (child->brother)
     {
@@ -666,6 +678,10 @@ void translate_VarDec(pNode node, pOperand place)
         }
         else if (type->kind == ARRAY)
         {
+<<<<<<< HEAD
+=======
+            // TODO 高维数组分析
+>>>>>>> 0a244460f1b9703d8ee77d47f975bb61303c521c
             pInterCodes p = newInterCodes(newInterCode(
                 IR_DEC,
                 2,
@@ -714,7 +730,11 @@ void translate_Exp(pNode exp, pOperand place)
     //      | FLOAT
 
     // Exp -> LP Exp RP
+<<<<<<< HEAD
 
+=======
+    
+>>>>>>> 0a244460f1b9703d8ee77d47f975bb61303c521c
     pNode child = exp->child;
     if (!strcmp(child->name, "LP"))
     {
@@ -892,6 +912,7 @@ void translate_Exp(pNode exp, pOperand place)
                 {
                     // 因为数组的维数每次都能打满，也就是不会有定义a[2][2][2]却使用了a[1][1]的情况（这是语法错误）
                     // 所以只要简单计算一下偏移就好了,不过这里的代码真的很丑，强烈不推荐这样写
+<<<<<<< HEAD
 
                     unsigned factor = 4;
                     unsigned depth = 0;
@@ -907,11 +928,28 @@ void translate_Exp(pNode exp, pOperand place)
                     pType type = item->field->type;
                     id = child;
 
+=======
+                    
+                    unsigned factor = 4;
+                    unsigned depth = 0;
+                    pNode id = child;
+                    while(id->child){
+                        id = id->child;
+                        depth++;
+                    }
+                    pOperand base = newOperand(OPERAND_VARIABLE,id->value);
+                    pTableItem item = getSymbolTableItem(symbolTable,id->value);
+                    assert(item->field->type->kind == ARRAY);
+                    pType type = item->field->type;
+                    id = child;
+                    
+>>>>>>> 0a244460f1b9703d8ee77d47f975bb61303c521c
                     pOperand offset = newTemp();
                     pOperand factorOperand = newTemp();
                     pOperand addOffset = newTemp();
                     unsigned zero = 0;
                     addInterCodesToWrap(interCodesWrap,
+<<<<<<< HEAD
                                         newInterCodes(newInterCode(IR_ASSIGN, 2, offset, newOperand(OPERAND_CONSTANT, &zero))));
 
                     while (id->child)
@@ -921,23 +959,46 @@ void translate_Exp(pNode exp, pOperand place)
                         pType tempType = type;
                         while (temp)
                         {
+=======
+                        newInterCodes(newInterCode(IR_ASSIGN,2,offset,newOperand(OPERAND_CONSTANT,&zero))));
+                    
+                    while(id->child){
+                        pOperand tempOperand = newTemp();
+                        unsigned temp = depth--;
+                        pType tempType = type;
+                        while(temp){
+>>>>>>> 0a244460f1b9703d8ee77d47f975bb61303c521c
                             temp -= 1;
                             tempType = tempType->u.array.elem;
                         }
                         factor = getSize(tempType);
+<<<<<<< HEAD
                         updateOperand(factorOperand, OPERAND_CONSTANT, &factor);
                         translate_Exp(id->brother->brother, tempOperand);
                         addInterCodesToWrap(interCodesWrap,
                                             newInterCodes(newInterCode(IR_MUL, 3, addOffset, factorOperand, tempOperand)));
                         addInterCodesToWrap(interCodesWrap,
                                             newInterCodes(newInterCode(IR_ADD, 3, offset, offset, addOffset)));
+=======
+                        updateOperand(factorOperand,OPERAND_CONSTANT,&factor);
+                        translate_Exp(id->brother->brother,tempOperand);
+                        addInterCodesToWrap(interCodesWrap,
+                        newInterCodes(newInterCode(IR_MUL,3,addOffset,factorOperand,tempOperand)));
+                        addInterCodesToWrap(interCodesWrap,
+                        newInterCodes(newInterCode(IR_ADD,3,offset,offset,addOffset)));
+>>>>>>> 0a244460f1b9703d8ee77d47f975bb61303c521c
                         id = id->child;
                         freeOperand(tempOperand);
                     }
                     pOperand target;
                     target = newTemp();
                     addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_GET_ADDR, 2, target, base)));
+<<<<<<< HEAD
                     addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ADD, 3, place, target, offset)));
+=======
+                    addInterCodesToWrap(interCodesWrap,newInterCodes(newInterCode(IR_ADD, 3, place, target, offset)));
+
+>>>>>>> 0a244460f1b9703d8ee77d47f975bb61303c521c
                 }
                 // 低维数组
                 else
@@ -957,6 +1018,7 @@ void translate_Exp(pNode exp, pOperand place)
                         OPERAND_CONSTANT, &size);
                     addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_MUL, 3, offset, idx, width)));
                     //如果不是数组参数，那么不需要进行取地址操作
+<<<<<<< HEAD
                     if (base->kind == OPERAND_VARIABLE)
                     {
                         target = newTemp();
@@ -964,6 +1026,12 @@ void translate_Exp(pNode exp, pOperand place)
                     }
                     else
                     {
+=======
+                    if(base->kind == OPERAND_VARIABLE){
+                        target = newTemp();
+                        addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_GET_ADDR, 2, target, base)));
+                    }else{
+>>>>>>> 0a244460f1b9703d8ee77d47f975bb61303c521c
                         target = copyOperand(base);
                     }
                     addInterCodesToWrap(interCodesWrap, newInterCodes(newInterCode(IR_ADD, 3, place, target, offset)));
@@ -1065,6 +1133,7 @@ void translate_Exp(pNode exp, pOperand place)
     {
         interCodesWrap->tempVarNum--;
         pTableItem item = getSymbolTableItem(symbolTable, child->value);
+<<<<<<< HEAD
         if (item->field->isParam && item->field->type->kind == ARRAY)
         {
             updateOperand(place, OPERAND_ADDRESS, newString(child->value));
@@ -1074,6 +1143,15 @@ void translate_Exp(pNode exp, pOperand place)
         {
             updateOperand(place, OPERAND_VARIABLE, newString(child->value));
         }
+=======
+        if (item->field->isParam && item->field->type->kind == ARRAY) {
+            updateOperand(place, OPERAND_ADDRESS, newString(child->value));
+            // place->isAddr = TRUE;
+        }else{
+            updateOperand(place, OPERAND_VARIABLE, newString(child->value));
+        }
+        
+>>>>>>> 0a244460f1b9703d8ee77d47f975bb61303c521c
     }
     else
     {

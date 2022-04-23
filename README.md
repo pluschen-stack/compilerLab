@@ -1,3 +1,2 @@
 # compilerLab
-hit compilerLab 2022
-哈工大2022编译原理实验
+2022 哈工大 编译原理实验

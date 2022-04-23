@@ -87,10 +87,30 @@ struct InterCodes_
     pInterCodes prev, next;
 };
 
+// struct dimInfo_
+// {
+//     unsigned size;   //这一维拥有的大小
+//     struct dimInfo_* next;
+// };
+
+// struct highDimarrayInfo_
+// {
+//     char *arrayName;
+
+//      info;
+// };
+
+// struct highDimarrayInfo_
+// {
+//     struct 
+//     int size;
+// };
+
 struct InterCodesWrap_
 {
     pInterCodes head; //第一条中间代码的头
     pInterCodes tail; //末尾的中间代码的尾
+    
     int labelNum;     //符号数,用于给符号命名，符号用于跳转
     int tempVarNum;   //临时变量数，用于给临时变量命令
 };
